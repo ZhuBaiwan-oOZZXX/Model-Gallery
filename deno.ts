@@ -1,0 +1,412 @@
+import { serve } from "https://deno.land/std@0.154.0/http/server.ts";
+
+// ==================== 配置部分 ====================
+const CONFIG = {
+  API_URL: Deno.env.get("API_URL") || "https://api.openai.com/v1/models",
+  API_KEY: Deno.env.get("API_KEY") || "",
+  SITE_NAME: Deno.env.get("SITE_NAME") || "NewAPI 模型列表",
+  SITE_LOGO: Deno.env.get("SITE_LOGO") || "https://docs.newapi.pro/assets/logo.png",
+  SITE_ICON: Deno.env.get("SITE_ICON") || "https://docs.newapi.pro/assets/logo.png",
+  FILTER_KEYWORDS: Deno.env.get("FILTER_KEYWORDS") || "",
+};
+
+// 图标配置
+const ICON_CONFIG = {
+  openai: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/1.68.0/files/light/openai.webp",
+    keywords: ["openai", "gpt"],
+  },
+  gemini: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/gemini-color.webp",
+    keywords: ["gemini", "google", "gemma"],
+  },
+  claude: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/claude-color.webp",
+    keywords: ["claude", "anthropic"],
+  },
+  grok: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/grok.webp",
+    keywords: ["grok", "xai"],
+  },
+  qwen: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/qwen-color.webp",
+    keywords: ["qwen", "tongyi", "wan"],
+  },
+  zhipu: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/zhipu-color.webp",
+    keywords: ["zhipu", "thudm", "glm", "zai"],
+  },
+  deepseek: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/deepseek-color.webp",
+    keywords: ["deepseek"],
+  },
+  kimi: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/kimi-color.webp",
+    keywords: ["kimi", "moonshot"],
+  },
+  腾讯混元: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/hunyuan-color.webp",
+    keywords: ["hunyuan", "tencent"],
+  },
+  perplexity: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/perplexity-color.webp",
+    keywords: ["pplx", "perplexity"],
+  },
+  零一万物: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/yi-color.webp",
+    keywords: ["yi"],
+  },
+  硅基流动: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/1.68.0/files/light/siliconcloud-color.webp",
+    keywords: ["silicon", "siliconflow", "siliconcloud", "硅基"],
+  },
+  LongCat: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/longcat-color.webp",
+    keywords: ["longcat", "longcat-ai"],
+  },
+};
+
+// ==================== 工具函数 ====================
+function parseFilterKeywords(keywordsStr: string): string[] {
+  return keywordsStr
+    .split(",")
+    .map((keyword) => keyword.trim().toLowerCase())
+    .filter((keyword) => keyword.length > 0);
+}
+
+function filterModels(models: string[]): string[] {
+  const keywords = parseFilterKeywords(CONFIG.FILTER_KEYWORDS);
+  if (keywords.length === 0) return models;
+
+  return models.filter((model) => {
+    const modelLower = model.toLowerCase();
+    return !keywords.some((keyword) => modelLower.includes(keyword));
+  });
+}
+
+function getGroupIcon(groupName: string): string {
+  const groupNameLower = groupName.toLowerCase();
+
+  for (const config of Object.values(ICON_CONFIG)) {
+    if (config.keywords.some(keyword => groupNameLower.includes(keyword.toLowerCase()))) {
+      return config.icon;
+    }
+  }
+
+  return ICON_CONFIG.openai.icon;
+}
+
+function groupModelsByPrefix(models: string[]): Record<string, string[]> {
+  const groups: Record<string, string[]> = {};
+  const separators = ["/", "-", "_"];
+
+  models.forEach((model) => {
+    const splitIndex = model
+      .split("")
+      .findIndex((char) => separators.includes(char));
+    const prefix = splitIndex !== -1 ? model.substring(0, splitIndex) : model;
+
+    if (!groups[prefix]) groups[prefix] = [];
+    groups[prefix].push(model);
+  });
+
+  return groups;
+}
+
+function sortGroupNames(
+  groupNames: string[],
+  groupedModels: Record<string, string[]>
+): string[] {
+  return groupNames.sort((a, b) => {
+    const countA = groupedModels[a].length;
+    const countB = groupedModels[b].length;
+
+    if (countA !== countB) return countB - countA;
+    return a.toLowerCase().localeCompare(b.toLowerCase());
+  });
+}
+
+// ==================== API 调用 ====================
+async function fetchModels(): Promise<{
+  models: string[] | null;
+  error: string | null;
+}> {
+  try {
+    const response = await fetch(CONFIG.API_URL, {
+      headers: {
+        Authorization: `Bearer ${CONFIG.API_KEY}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`获取模型失败: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    if (data?.data && Array.isArray(data.data)) {
+      const models = data.data.map((model: any) => model.id);
+      return { models, error: null };
+    }
+
+    return { models: null, error: "API响应格式不符合预期" };
+  } catch (error) {
+    return { models: null, error: (error as Error).message };
+  }
+}
+
+// ==================== HTML 模板生成 ====================
+function generateHeader(): string {
+  return `
+        <div class="text-center mb-10">
+            <div class="mb-6 inline-block">
+                <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 p-1 shadow-xl">
+                    <img src="${CONFIG.SITE_LOGO}" 
+                         alt="AI助手" 
+                         class="w-full h-full rounded-xl object-cover bg-white">
+                </div>
+            </div>
+            <h1 class="text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                ${CONFIG.SITE_NAME}
+            </h1>
+        </div>
+    `;
+}
+
+function generateModelCard(model: string, groupName: string): string {
+  return `
+        <div class="group relative bg-white rounded-xl p-4 border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all duration-200 cursor-pointer" 
+             onclick="copyToClipboard('${model}')">
+            <div class="flex items-start space-x-3">
+                <div class="flex-shrink-0">
+                    <img src="${getGroupIcon(groupName)}" 
+                         alt="${groupName}" 
+                         class="w-8 h-8 rounded-lg object-cover bg-gray-50 border border-gray-200"
+                         onerror="this.src='https://via.placeholder.com/32x32/f0f0f0/999999?text=AI'">
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="font-medium text-gray-900 text-sm leading-tight break-all">${model}</div>
+                </div>
+            </div>
+            <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <i class="fas fa-copy text-gray-400 text-xs"></i>
+            </div>
+        </div>
+    `;
+}
+
+function generateGroupSection(groupName: string, models: string[]): string {
+  return `
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="p-5 cursor-pointer hover:bg-gray-50 transition-colors" 
+                 onclick="toggleGroup('${groupName}')">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <div class="relative">
+                            <img src="${getGroupIcon(groupName)}" 
+                                 alt="${groupName}" 
+                                 class="w-12 h-12 rounded-xl object-cover bg-gray-50 border border-gray-200 shadow-sm"
+                                 onerror="this.src='https://via.placeholder.com/48x48/f0f0f0/999999?text=AI'">
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900">${groupName}</h3>
+                            <p class="text-sm text-gray-500">${
+                              models.length
+                            } 个模型</p>
+                        </div>
+                    </div>
+                    <div class="text-gray-400">
+                        <i id="icon-${groupName}" class="fas fa-chevron-down transition-transform duration-200"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="content-${groupName}" class="border-t border-gray-100">
+                <div class="p-5">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                        ${models
+                          .map((model) => generateModelCard(model, groupName))
+                          .join("")}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function generateHtml(models: string[] | null, error: string | null): string {
+  const filteredModels = models ? filterModels(models) : null;
+  const groupedModels = filteredModels
+    ? groupModelsByPrefix(filteredModels)
+    : null;
+  const groupNames = groupedModels
+    ? sortGroupNames(Object.keys(groupedModels), groupedModels)
+    : [];
+
+  return `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${CONFIG.SITE_NAME}</title>
+    <link rel="icon" href="${CONFIG.SITE_ICON}" type="image/x-icon">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }
+        
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+        }
+        
+        .notification-hidden {
+            transform: translateX(calc(100% + 2rem));
+            opacity: 0;
+        }
+        
+        .notification-visible {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="font-sans">
+    <div class="min-h-screen py-8 px-4">
+        <div class="max-w-7xl mx-auto">
+            ${generateHeader()}
+            
+            ${
+              groupedModels
+                ? `
+            <div class="glass-effect rounded-2xl p-4 mb-8 inline-block mx-auto block text-center shadow-lg">
+                <div class="flex items-center justify-center space-x-6 text-sm">
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-layer-group text-blue-600"></i>
+                        <span class="text-gray-700">${
+                          groupNames.length
+                        } 个渠道</span>
+                    </div>
+                    <div class="w-px h-4 bg-gray-300"></div>
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-microchip text-purple-600"></i>
+                        <span class="text-gray-700">${
+                          filteredModels!.length
+                        } 个模型</span>
+                    </div>
+                </div>
+            </div>
+            `
+                : ""
+            }
+            
+            <div id="notification" class="notification-hidden fixed top-6 right-6 px-5 py-3 rounded-xl z-50 text-white font-medium bg-gradient-to-r from-green-500 to-emerald-600 shadow-2xl transition-all duration-300 ease-out">
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-check-circle"></i>
+                    <span>已复制到剪贴板!</span>
+                </div>
+            </div>
+            
+            ${
+              error
+                ? `
+            <div class="bg-white rounded-2xl p-8 text-center max-w-2xl mx-auto mb-8 shadow-lg border border-red-100">
+                <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-exclamation-triangle text-red-600 text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">连接错误</h3>
+                <p class="text-gray-600">${error}</p>
+            </div>
+            `
+                : ""
+            }
+            
+            ${
+              groupedModels
+                ? `
+            <div class="space-y-6">
+                ${groupNames
+                  .map((groupName) =>
+                    generateGroupSection(groupName, groupedModels[groupName])
+                  )
+                  .join("")}
+            </div>
+            `
+                : `
+            <div class="bg-white rounded-2xl p-12 text-center max-w-2xl mx-auto shadow-lg">
+                <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <i class="fas fa-robot text-gray-400 text-3xl"></i>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">暂无模型可用</h3>
+                <p class="text-gray-500">请检查API配置或稍后重试</p>
+            </div>
+            `
+            }
+        </div>
+    </div>
+    
+    <script>
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                const notification = document.getElementById('notification');
+                notification.classList.remove('notification-hidden');
+                notification.classList.add('notification-visible');
+                
+                setTimeout(() => {
+                    notification.classList.remove('notification-visible');
+                    notification.classList.add('notification-hidden');
+                }, 2000);
+            }).catch(err => {
+                console.error('复制失败:', err);
+            });
+        }
+
+        function toggleGroup(groupName) {
+            const content = document.getElementById('content-' + groupName);
+            const icon = document.getElementById('icon-' + groupName);
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                icon.style.transform = 'rotate(0deg)';
+            } else {
+                content.style.display = 'none';
+                icon.style.transform = 'rotate(-90deg)';
+            }
+        }
+
+        // 页面加载时设置初始状态
+        document.addEventListener('DOMContentLoaded', function() {
+            // 默认展开所有分组
+            document.querySelectorAll('[id^="content-"]').forEach(content => {
+                content.style.display = 'block';
+            });
+        });
+    </script>
+</body>
+</html>
+`;
+}
+
+// ==================== 服务器启动 ====================
+serve(
+  async (req: Request) => {
+    const url = new URL(req.url);
+
+    if (url.pathname === "/") {
+      const { models, error } = await fetchModels();
+      const html = generateHtml(models, error);
+
+      return new Response(html, {
+        headers: { "Content-Type": "text/html" },
+      });
+    }
+
+    return new Response("未找到页面", { status: 404 });
+  },
+  { port: 8000 }
+);
