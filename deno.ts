@@ -7,13 +7,12 @@ const CONFIG = {
   SITE_NAME: Deno.env.get("SITE_NAME") || "NewAPI 模型列表",
   SITE_LOGO: Deno.env.get("SITE_LOGO") || "https://docs.newapi.pro/assets/logo.png",
   SITE_ICON: Deno.env.get("SITE_ICON") || "https://docs.newapi.pro/assets/logo.png",
-  FILTER_KEYWORDS: Deno.env.get("FILTER_KEYWORDS") || "",
 };
 
 // 图标配置
 const ICON_CONFIG = {
   openai: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/1.68.0/files/light/openai.webp",
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/openai.webp",
     keywords: ["openai", "gpt"],
   },
   gemini: {
@@ -57,33 +56,20 @@ const ICON_CONFIG = {
     keywords: ["yi"],
   },
   硅基流动: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/1.68.0/files/light/siliconcloud-color.webp",
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/siliconcloud-color.webp",
     keywords: ["silicon", "siliconflow", "siliconcloud", "硅基"],
   },
   LongCat: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/longcat-color.webp",
     keywords: ["longcat", "longcat-ai"],
+    },
+  MiniMax: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/minimax-color.webp",
+    keywords: ["minimax"],
   },
 };
 
 // ==================== 工具函数 ====================
-function parseFilterKeywords(keywordsStr: string): string[] {
-  return keywordsStr
-    .split(",")
-    .map((keyword) => keyword.trim().toLowerCase())
-    .filter((keyword) => keyword.length > 0);
-}
-
-function filterModels(models: string[]): string[] {
-  const keywords = parseFilterKeywords(CONFIG.FILTER_KEYWORDS);
-  if (keywords.length === 0) return models;
-
-  return models.filter((model) => {
-    const modelLower = model.toLowerCase();
-    return !keywords.some((keyword) => modelLower.includes(keyword));
-  });
-}
-
 function getGroupIcon(groupName: string): string {
   const groupNameLower = groupName.toLowerCase();
 
@@ -211,9 +197,7 @@ function generateGroupSection(groupName: string, models: string[]): string {
                         </div>
                         <div>
                             <h3 class="text-lg font-semibold text-gray-900">${groupName}</h3>
-                            <p class="text-sm text-gray-500">${
-                              models.length
-                            } 个模型</p>
+                            <p class="text-sm text-gray-500">${models.length} 个模型</p>
                         </div>
                     </div>
                     <div class="text-gray-400">
@@ -236,9 +220,8 @@ function generateGroupSection(groupName: string, models: string[]): string {
 }
 
 function generateHtml(models: string[] | null, error: string | null): string {
-  const filteredModels = models ? filterModels(models) : null;
-  const groupedModels = filteredModels
-    ? groupModelsByPrefix(filteredModels)
+  const groupedModels = models
+    ? groupModelsByPrefix(models)
     : null;
   const groupNames = groupedModels
     ? sortGroupNames(Object.keys(groupedModels), groupedModels)
@@ -281,29 +264,21 @@ function generateHtml(models: string[] | null, error: string | null): string {
         <div class="max-w-7xl mx-auto">
             ${generateHeader()}
             
-            ${
-              groupedModels
-                ? `
+            ${groupedModels ? `
             <div class="glass-effect rounded-2xl p-4 mb-8 inline-block mx-auto block text-center shadow-lg">
                 <div class="flex items-center justify-center space-x-6 text-sm">
                     <div class="flex items-center space-x-2">
                         <i class="fas fa-layer-group text-blue-600"></i>
-                        <span class="text-gray-700">${
-                          groupNames.length
-                        } 个渠道</span>
+                        <span class="text-gray-700">${groupNames.length} 个渠道</span>
                     </div>
                     <div class="w-px h-4 bg-gray-300"></div>
                     <div class="flex items-center space-x-2">
                         <i class="fas fa-microchip text-purple-600"></i>
-                        <span class="text-gray-700">${
-                          filteredModels!.length
-                        } 个模型</span>
+                        <span class="text-gray-700">${models!.length} 个模型</span>
                     </div>
                 </div>
             </div>
-            `
-                : ""
-            }
+            ` : ""}
             
             <div id="notification" class="notification-hidden fixed top-6 right-6 px-5 py-3 rounded-xl z-50 text-white font-medium bg-gradient-to-r from-green-500 to-emerald-600 shadow-2xl transition-all duration-300 ease-out">
                 <div class="flex items-center space-x-2">
@@ -312,9 +287,7 @@ function generateHtml(models: string[] | null, error: string | null): string {
                 </div>
             </div>
             
-            ${
-              error
-                ? `
+            ${error ? `
             <div class="bg-white rounded-2xl p-8 text-center max-w-2xl mx-auto mb-8 shadow-lg border border-red-100">
                 <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i class="fas fa-exclamation-triangle text-red-600 text-2xl"></i>
@@ -322,22 +295,17 @@ function generateHtml(models: string[] | null, error: string | null): string {
                 <h3 class="text-xl font-semibold text-gray-900 mb-2">连接错误</h3>
                 <p class="text-gray-600">${error}</p>
             </div>
-            `
-                : ""
-            }
+            ` : ""}
             
-            ${
-              groupedModels
-                ? `
+            ${groupedModels ? `
             <div class="space-y-6">
                 ${groupNames
                   .map((groupName) =>
-                    generateGroupSection(groupName, groupedModels[groupName])
+                    generateGroupSection(groupName, groupedModels![groupName])
                   )
                   .join("")}
             </div>
-            `
-                : `
+            ` : `
             <div class="bg-white rounded-2xl p-12 text-center max-w-2xl mx-auto shadow-lg">
                 <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
                     <i class="fas fa-robot text-gray-400 text-3xl"></i>
@@ -345,8 +313,7 @@ function generateHtml(models: string[] | null, error: string | null): string {
                 <h3 class="text-xl font-semibold text-gray-900 mb-2">暂无模型可用</h3>
                 <p class="text-gray-500">请检查API配置或稍后重试</p>
             </div>
-            `
-            }
+            `}
         </div>
     </div>
     
@@ -407,6 +374,5 @@ serve(
     }
 
     return new Response("未找到页面", { status: 404 });
-  },
-  { port: 8000 }
+  }
 );
