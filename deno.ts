@@ -68,6 +68,14 @@ const GROUP_CONFIG = {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/minimax-color.webp",
     keywords: ["minimax"],
   },
+  百灵:{
+    icon: "https://gh-proxy.com/https://raw.githubusercontent.com/ZhuBaiwan-oOZZXX/HomePage/master/icons/百灵.png",
+    keywords: ["Ling", "Ring", "百灵"],
+  },
+  Mistral:{
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/mistral-color.webp",
+    keywords: ["mistral", "codestral"],
+  },
   default: { // 默认组
     name: "其他",
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/openai.webp",
