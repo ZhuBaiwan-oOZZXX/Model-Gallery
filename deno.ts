@@ -18,7 +18,7 @@ const GROUP_CONFIG = {
   },
   Gemini: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/gemini-color.webp",
-    keywords: ["gemini", "google", "gemma"],
+    keywords: ["gemini", "google", "gemma", "banana"],
   },
   Claude: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/claude-color.webp",
@@ -75,6 +75,10 @@ const GROUP_CONFIG = {
   Mistral:{
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/mistral-color.webp",
     keywords: ["mistral", "codestral"],
+  },
+  豆包: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/doubao-color.webp",
+    keywords: ["doubao", "豆包", "seed"],
   },
   default: { // 默认组
     name: "其他",
