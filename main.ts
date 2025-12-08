@@ -2,9 +2,9 @@
 const CONFIG = {
   API_URL: Deno.env.get("API_URL") || "https://api.openai.com/v1/models",
   API_KEY: Deno.env.get("API_KEY") || "",
+  SITE_ICON: Deno.env.get("SITE_ICON") || "https://docs.newapi.pro/assets/logo.png",
   SITE_NAME: Deno.env.get("SITE_NAME") || "NewAPI 模型列表",
   SITE_LOGO: Deno.env.get("SITE_LOGO") || "https://docs.newapi.pro/assets/logo.png",
-  SITE_ICON: Deno.env.get("SITE_ICON") || "https://docs.newapi.pro/assets/logo.png",
 };
 
 // 图标和分组配置
@@ -187,8 +187,7 @@ function generateModelCard(model: string, groupName: string): string {
                 <div class="flex-shrink-0">
                     <img src="${getGroupIcon(groupName)}" 
                          alt="${groupName}" 
-                         class="w-8 h-8 rounded-lg object-cover bg-gray-50 border border-gray-200"
-                         onerror="this.src='https://via.placeholder.com/32x32/f0f0f0/999999?text=AI'">
+                         class="w-8 h-8 rounded-lg object-cover bg-gray-50 border border-gray-200">
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="font-medium text-gray-900 text-sm leading-tight break-all">${model}</div>
@@ -212,8 +211,7 @@ function generateGroupSection(groupName: string, models: string[]): string {
                         <div class="relative">
                             <img src="${getGroupIcon(groupName)}" 
                                  alt="${displayName}" 
-                                 class="w-12 h-12 rounded-xl object-cover bg-gray-50 border border-gray-200 shadow-sm"
-                                 onerror="this.src='https://via.placeholder.com/48x48/f0f0f0/999999?text=AI'">
+                                 class="w-12 h-12 rounded-xl object-cover bg-gray-50 border border-gray-200 shadow-sm">
                         </div>
                         <div>
                             <h3 class="text-lg font-semibold text-gray-900">${displayName}</h3>
