@@ -1,5 +1,3 @@
-import { serve } from "https://deno.land/std@0.154.0/http/server.ts";
-
 // ==================== 配置部分 ====================
 const CONFIG = {
   API_URL: Deno.env.get("API_URL") || "https://api.openai.com/v1/models",
@@ -351,7 +349,7 @@ function generateHtml(models: string[] | null, error: string | null): string {
 }
 
 // ==================== 服务器启动 ====================
-serve(async (req: Request) => {
+Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
   if (url.pathname === "/") {
     const { models, error } = await fetchModels();
