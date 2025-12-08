@@ -20,7 +20,7 @@ const GROUP_CONFIG = {
   },
   Claude: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/claude-color.webp",
-    keywords: ["claude", "anthropic"],
+    keywords: ["claude", "anthropic", "opus", "sonnet", "haiku"],
   },
   Grok: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/grok.webp",
@@ -67,7 +67,7 @@ const GROUP_CONFIG = {
     keywords: ["minimax"],
   },
   百灵:{
-    icon: "https://gh-proxy.com/https://raw.githubusercontent.com/ZhuBaiwan-oOZZXX/HomePage/master/icons/百灵.png",
+    icon: "https://sf-maas-uat-prod.oss-cn-shanghai.aliyuncs.com/Model_LOGO/ling.png",
     keywords: ["Ling", "Ring", "百灵"],
   },
   Mistral:{
