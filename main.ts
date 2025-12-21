@@ -83,7 +83,7 @@ const GROUP_CONFIG = {
     keywords: ["doubao", "豆包", "seed"],
   },
   BAAI: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/baai-text.webp",
+    icon: "https://sf-maas-uat-prod.oss-cn-shanghai.aliyuncs.com/Model_LOGO/BAAI.svg",
     keywords: ["baai", "bge"],
   },
   default: { // 默认组
