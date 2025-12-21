@@ -1,4 +1,4 @@
-name = "model-list"
+name = "Model-Gallery"
 compatibility_date = "2024-01-01"
 main = "worker.js"
 
@@ -7,5 +7,5 @@ main = "worker.js"
 API_URL = "https://api.openai.com/v1/models"
 API_KEY = ""
 SITE_ICON = "https://docs.newapi.pro/assets/logo.png"
-SITE_NAME = "NewAPI 模型列表"
+SITE_NAME = "Model Gallery"
 SITE_LOGO = "https://docs.newapi.pro/assets/logo.png"

@@ -1,4 +1,4 @@
-# NewAPI 模型列表展示工具
+# Model Gallery - AI模型展示平台
 ![模型列表展示](./images/图片展示.png)
 
 将获取到的模型列表按关键词分组展示，适用于 NewAPI 等兼容 OpenAI 模型接口。
@@ -23,7 +23,7 @@
 ---|---|---|---
  `API_URL` | AI 模型 API 地址，必须包含 `/v1/models` 路径 | https://api.openai.com/v1/models | 必选 
  `API_KEY` | API 访问密钥 | sk-xxxxxxxxxxxxxxxxxxxxxxxx | 必选 
- `SITE_NAME` | 网站标题，显示在页面顶部 | NewAPI 模型列表 | 可选 
+ `SITE_NAME` | 网站标题，显示在页面顶部 | Model Gallery | 可选 
  `SITE_LOGO` | 网站 Logo 的 URL 地址，显示在页面顶部中央 | https://docs.newapi.pro/assets/logo.png | 可选 
  `SITE_ICON` | 网站图标（favicon）的 URL 地址，显示在浏览器标签页 | https://docs.newapi.pro/assets/logo.png | 可选 
 

@@ -351,7 +351,7 @@ export default {
         API_URL: env.API_URL || "https://api.openai.com/v1/models",
         API_KEY: env.API_KEY || "",
         SITE_ICON: env.SITE_ICON || "https://docs.newapi.pro/assets/logo.png",
-        SITE_NAME: env.SITE_NAME || "NewAPI 模型列表",
+        SITE_NAME: env.SITE_NAME || "Model Gallery",
         SITE_LOGO: env.SITE_LOGO || "https://docs.newapi.pro/assets/logo.png",
       };
 
