@@ -3,13 +3,19 @@
 ## 📋 工具简介
 基于 Deno 开发，将获取到的模型列表按关键词分组展示，适用于 NewAPI 及兼容 OpenAI 模型接口。
 
+## 🖼️ 效果展示
+
+### 模型列表展示
+![模型列表展示](./images/图片展示.png)
+
+### 未配置状态
+![未配置状态](./images/未配置.png)  
 
 ## 🚀 deno 部署
 1. 登录 [deno](https://dash.deno.com)
 2. 创建一个 New Playground
 3. 粘贴 main.ts 代码
 4. 添加环境变量
-
 
 ## ⚙️ 环境变量
  **变量名** | **说明** | **示例** | **是否必选** 
@@ -19,7 +25,6 @@
  `SITE_NAME` | 网站标题，显示在页面顶部 | NewAPI 模型列表 | 可选 
  `SITE_LOGO` | 网站 Logo 的 URL 地址，显示在页面顶部中央 | https://docs.newapi.pro/assets/logo.png | 可选 
  `SITE_ICON` | 网站图标（favicon）的 URL 地址，显示在浏览器标签页（可选） | https://docs.newapi.pro/assets/logo.png | 可选 
-
 
 ## 🔍 匹配流程
 1. **遍历模型**
@@ -45,7 +50,6 @@
 ## ➕ 添加分组
 - 修改代码中的 `GROUP_CONFIG` 配置，按照格式添加您需要的分组
 - 每个分组包含 `name`（分组名称，随意）、`icon`（图标 URL）和 `keywords`（多个匹配关键词）
-
 
 ## 🙏 感谢
 感谢 [Lobe Icons](https://github.com/lobehub/lobe-icons) 项目提供的精美图标。

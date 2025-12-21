@@ -26,6 +26,10 @@ const GROUP_CONFIG = {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/grok.webp",
     keywords: ["grok", "xai"],
   },
+  Groq: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/groq.webp",
+    keywords: ["groq"],
+  },
   Qwen: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/qwen-color.webp",
     keywords: ["qwen", "tongyi", "wan"],
@@ -66,17 +70,21 @@ const GROUP_CONFIG = {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/minimax-color.webp",
     keywords: ["minimax"],
   },
-  百灵:{
+  百灵: {
     icon: "https://sf-maas-uat-prod.oss-cn-shanghai.aliyuncs.com/Model_LOGO/ling.png",
     keywords: ["Ling", "Ring", "百灵"],
   },
-  Mistral:{
+  Mistral: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/mistral-color.webp",
     keywords: ["mistral", "codestral"],
   },
   豆包: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/doubao-color.webp",
     keywords: ["doubao", "豆包", "seed"],
+  },
+  BAAI: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/baai-text.webp",
+    keywords: ["baai", "beg"],
   },
   default: { // 默认组
     name: "其他",
@@ -103,7 +111,7 @@ function groupModelsByKeywords(models: string[]): Record<string, string[]> {
       const config = GROUP_CONFIG[groupName as keyof typeof GROUP_CONFIG];
       // 确保 'default' 组不会被关键词匹配
       if (groupName === 'default' || !config.keywords) continue;
-      
+
       if (config.keywords.some(keyword => modelLower.includes(keyword.toLowerCase()))) {
         assignedGroupName = groupName;
         break; // 匹配成功后，立即停止遍历
