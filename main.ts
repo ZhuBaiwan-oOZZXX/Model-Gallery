@@ -84,7 +84,7 @@ const GROUP_CONFIG = {
   },
   BAAI: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/baai-text.webp",
-    keywords: ["baai", "beg"],
+    keywords: ["baai", "bge"],
   },
   default: { // 默认组
     name: "其他",
