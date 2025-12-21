@@ -1,7 +1,7 @@
-# Model Gallery - AI模型展示平台
+# Model Gallery
 ![模型列表展示](./images/图片展示.png)
 
-将获取到的模型列表按关键词分组展示，适用于 NewAPI 等兼容 OpenAI 模型接口。
+将获取到的模型列表按关键词分组展示，专门为 NewAPI 设计，适用于展示 OpenAI 兼容的模型接口
 
 ## 🚀 快速开始
 
