@@ -1,21 +1,22 @@
 # NewAPI 模型列表展示工具
-
-## 📋 工具简介
-基于 Deno 开发，将获取到的模型列表按关键词分组展示，适用于 NewAPI 及兼容 OpenAI 模型接口。
-
-## 🖼️ 效果展示
-
-### 模型列表展示
 ![模型列表展示](./images/图片展示.png)
 
-### 未配置状态
-![未配置状态](./images/未配置.png)  
+将获取到的模型列表按关键词分组展示，适用于 NewAPI 等兼容 OpenAI 模型接口。
 
-## 🚀 deno 部署
-1. 登录 [deno](https://dash.deno.com)
+## 🚀 快速开始
+
+### 🦕 deno 部署
+1. 登录 [deno](https://dash.deno.com) dashboard
 2. 创建一个 New Playground
-3. 粘贴 main.ts 代码
+3. 粘贴 `main.ts` 代码
 4. 添加环境变量
+
+### ☁️ Cloudflare Worker 部署
+1. 登录 [Cloudflare 控制台](https://dash.cloudflare.com)
+2. 进入 **Workers & Pages** 
+3. 点击 **创建应用程序** -> **从 Hello World! 开始**
+4. 删除默认代码，粘贴 `worker.js` 代码
+5. 添加环境变量
 
 ## ⚙️ 环境变量
  **变量名** | **说明** | **示例** | **是否必选** 
@@ -24,7 +25,7 @@
  `API_KEY` | API 访问密钥 | sk-xxxxxxxxxxxxxxxxxxxxxxxx | 必选 
  `SITE_NAME` | 网站标题，显示在页面顶部 | NewAPI 模型列表 | 可选 
  `SITE_LOGO` | 网站 Logo 的 URL 地址，显示在页面顶部中央 | https://docs.newapi.pro/assets/logo.png | 可选 
- `SITE_ICON` | 网站图标（favicon）的 URL 地址，显示在浏览器标签页（可选） | https://docs.newapi.pro/assets/logo.png | 可选 
+ `SITE_ICON` | 网站图标（favicon）的 URL 地址，显示在浏览器标签页 | https://docs.newapi.pro/assets/logo.png | 可选 
 
 ## 🔍 匹配流程
 1. **遍历模型**
