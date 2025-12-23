@@ -23,6 +23,7 @@
 ---|---|---|---
  `API_URL` | AI 模型 API 地址，必须包含 `/v1/models` 路径 | https://api.openai.com/v1/models | 必选 
  `API_KEY` | API 访问密钥 | sk-xxxxxxxxxxxxxxxxxxxxxxxx | 必选 
+ `SITE_LINK` | 网站链接，图标点击后跳转的地址 | https://github.com/ZhuBaiwan-oOZZXX/Model-Gallery | 可选 
  `SITE_NAME` | 网站标题，显示在页面顶部 | Model Gallery | 可选 
  `SITE_LOGO` | 网站 Logo 的 URL 地址，显示在页面顶部中央 | https://docs.newapi.pro/assets/logo.png | 可选 
  `SITE_ICON` | 网站图标（favicon）的 URL 地址，显示在浏览器标签页 | https://docs.newapi.pro/assets/logo.png | 可选 

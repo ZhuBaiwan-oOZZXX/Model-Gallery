@@ -161,13 +161,13 @@ async function fetchModels(CONFIG) {
 function generateHeader(CONFIG) {
   return `
         <div class="text-center mb-10">
-            <div class="mb-6 inline-block">
-                <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 p-1 shadow-xl">
+            <a href="${CONFIG.SITE_LINK}" target="_blank" class="mb-6 inline-block">
+                <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 p-1 shadow-xl hover:scale-105 transition-transform">
                     <img src="${CONFIG.SITE_LOGO}" 
                          alt="AI助手" 
                          class="w-full h-full rounded-xl object-cover bg-white">
                 </div>
-            </div>
+            </a>
             <h1 class="text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 ${CONFIG.SITE_NAME}
             </h1>
@@ -351,6 +351,7 @@ export default {
         API_URL: env.API_URL || "https://api.openai.com/v1/models",
         API_KEY: env.API_KEY || "",
         SITE_ICON: env.SITE_ICON || "https://docs.newapi.pro/assets/logo.png",
+        SITE_LINK: env.SITE_LINK || "https://github.com/ZhuBaiwan-oOZZXX/Model-Gallery",
         SITE_NAME: env.SITE_NAME || "Model Gallery",
         SITE_LOGO: env.SITE_LOGO || "https://docs.newapi.pro/assets/logo.png",
       };
