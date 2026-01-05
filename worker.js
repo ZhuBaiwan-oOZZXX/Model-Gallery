@@ -13,9 +13,21 @@ const GROUP_CONFIG = {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/claude-color.webp",
     keywords: ["claude", "anthropic", "opus", "sonnet", "haiku"],
   },
+  MiniMax: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/minimax-color.webp",
+    keywords: ["minimax"],
+  },
   Grok: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/grok.webp",
     keywords: ["grok", "xai"],
+  },
+  Nvidia: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/nvidia-color.webp",
+    keywords: ["nvidia"],
+  },
+  Llama: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/ollama.webp",
+    keywords: ["ollama", "llama", "meta"],
   },
   Groq: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/groq.webp",
@@ -56,10 +68,6 @@ const GROUP_CONFIG = {
   LongCat: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/longcat-color.webp",
     keywords: ["longcat", "longcat-ai"],
-  },
-  MiniMax: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/minimax-color.webp",
-    keywords: ["minimax"],
   },
   百灵: {
     icon: "https://sf-maas-uat-prod.oss-cn-shanghai.aliyuncs.com/Model_LOGO/ling.png",
