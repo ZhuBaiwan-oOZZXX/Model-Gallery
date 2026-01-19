@@ -3,7 +3,7 @@
 const GROUP_CONFIG = {
   OpenAI: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/openai.webp",
-    keywords: ["gpt", "dall-e"],
+    keywords: ["gpt", "dall", "chatgpt", "codex"],
   },
   Gemini: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/gemini-color.webp",
@@ -67,7 +67,7 @@ const GROUP_CONFIG = {
   },
   LongCat: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/longcat-color.webp",
-    keywords: ["longcat", "longcat-ai"],
+    keywords: ["longcat"],
   },
   百灵: {
     icon: "https://sf-maas-uat-prod.oss-cn-shanghai.aliyuncs.com/Model_LOGO/ling.png",
@@ -84,6 +84,14 @@ const GROUP_CONFIG = {
   BAAI: {
     icon: "https://sf-maas-uat-prod.oss-cn-shanghai.aliyuncs.com/Model_LOGO/BAAI.svg",
     keywords: ["baai", "bge"],
+  },
+  小米: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/xiaomimimo.webp",
+    keywords: ["xiaomi", "小米", "mimo"],
+  },
+  文心一言: {
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/wenxin-color.webp",
+    keywords: ["yiyan", "一言", "wenxin", "文心", "baidu", "百度", "ernie"],
   },
   default: { // 默认组
     name: "其他",

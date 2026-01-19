@@ -51,7 +51,8 @@
 
 ## ➕ 添加分组
 - 修改代码中的 `GROUP_CONFIG` 配置，按照格式添加您需要的分组
-- 每个分组包含 `name`（分组名称，随意）、`icon`（图标 URL）和 `keywords`（多个匹配关键词）
+- 每个分组包含 `icon`（图标 URL）和 `keywords`（多个匹配关键词），key 将作为组名
+- `default` 组为默认分组，未匹配到任何关键词的模型将进入该组
 
 ## 🙏 感谢
 感谢 [Lobe Icons](https://github.com/lobehub/lobe-icons) 项目提供的精美图标。
