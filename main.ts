@@ -4,8 +4,8 @@ const CONFIG = {
   API_KEY: Deno.env.get("API_KEY") || "",
   SITE_ICON: Deno.env.get("SITE_ICON") || "https://docs.newapi.pro/assets/logo.png",
   SITE_LINK: Deno.env.get("SITE_LINK") || "https://github.com/ZhuBaiwan-oOZZXX/Model-Gallery",
-  SITE_NAME: Deno.env.get("SITE_NAME") || "Model Gallery",
   SITE_LOGO: Deno.env.get("SITE_LOGO") || "https://docs.newapi.pro/assets/logo.png",
+  SITE_NAME: Deno.env.get("SITE_NAME") || "Model Gallery",
 };
 
 // 图标和分组配置

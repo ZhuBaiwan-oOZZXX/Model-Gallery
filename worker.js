@@ -368,8 +368,8 @@ export default {
         API_KEY: env.API_KEY || "",
         SITE_ICON: env.SITE_ICON || "https://docs.newapi.pro/assets/logo.png",
         SITE_LINK: env.SITE_LINK || "https://github.com/ZhuBaiwan-oOZZXX/Model-Gallery",
-        SITE_NAME: env.SITE_NAME || "Model Gallery",
         SITE_LOGO: env.SITE_LOGO || "https://docs.newapi.pro/assets/logo.png",
+        SITE_NAME: env.SITE_NAME || "Model Gallery",
       };
 
       const { models, error } = await fetchModels(CONFIG);
