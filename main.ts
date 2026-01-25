@@ -2,110 +2,148 @@
 const CONFIG = {
   API_URL: Deno.env.get("API_URL") || "https://api.openai.com/v1/models",
   API_KEY: Deno.env.get("API_KEY") || "",
-  SITE_ICON: Deno.env.get("SITE_ICON") || "https://docs.newapi.pro/assets/logo.png",
-  SITE_LINK: Deno.env.get("SITE_LINK") || "https://github.com/ZhuBaiwan-oOZZXX/Model-Gallery",
-  SITE_LOGO: Deno.env.get("SITE_LOGO") || "https://docs.newapi.pro/assets/logo.png",
+  SITE_ICON: Deno.env.get("SITE_ICON") ||
+    "https://docs.newapi.pro/assets/logo.png",
+  SITE_LINK: Deno.env.get("SITE_LINK") ||
+    "https://github.com/ZhuBaiwan-oOZZXX/Model-Gallery",
+  SITE_LOGO: Deno.env.get("SITE_LOGO") ||
+    "https://docs.newapi.pro/assets/logo.png",
   SITE_NAME: Deno.env.get("SITE_NAME") || "Model Gallery",
 };
 
 // 图标和分组配置
 // key 将作为组名，value 包含图标和用于匹配的关键词
-const GROUP_CONFIG = {
+
+type GroupConfig = {
+  icon: string;
+  keywords: string[];
+};
+
+type DefaultGroupConfig = {
+  name: string;
+  icon: string;
+};
+
+const GROUP_CONFIG: Record<string, GroupConfig | DefaultGroupConfig> = {
   OpenAI: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/openai.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/openai.webp",
     keywords: ["gpt", "dall", "chatgpt", "codex"],
   },
   Gemini: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/gemini-color.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/gemini-color.webp",
     keywords: ["gemini", "google", "gemma", "banana"],
   },
   Claude: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/claude-color.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/claude-color.webp",
     keywords: ["claude", "anthropic", "opus", "sonnet", "haiku"],
   },
   MiniMax: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/minimax-color.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/minimax-color.webp",
     keywords: ["minimax"],
   },
   Grok: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/grok.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/grok.webp",
     keywords: ["grok", "xai"],
   },
   Nvidia: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/nvidia-color.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/nvidia-color.webp",
     keywords: ["nvidia"],
   },
   Llama: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/ollama.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/ollama.webp",
     keywords: ["ollama", "llama", "meta"],
   },
   Groq: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/groq.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/groq.webp",
     keywords: ["groq"],
   },
   Qwen: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/qwen-color.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/qwen-color.webp",
     keywords: ["qwen", "tongyi", "wan"],
   },
   智谱: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/zhipu-color.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/zhipu-color.webp",
     keywords: ["zhipu", "thudm", "glm", "zai"],
   },
   DeepSeek: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/deepseek-color.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/deepseek-color.webp",
     keywords: ["deepseek"],
   },
   Kimi: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/kimi-color.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/kimi-color.webp",
     keywords: ["kimi", "moonshot"],
   },
   腾讯混元: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/hunyuan-color.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/hunyuan-color.webp",
     keywords: ["hunyuan", "tencent"],
   },
   Perplexity: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/perplexity-color.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/perplexity-color.webp",
     keywords: ["pplx", "perplexity"],
   },
   零一万物: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/yi-color.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/yi-color.webp",
     keywords: ["yi"],
   },
   硅基流动: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/siliconcloud-color.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/siliconcloud-color.webp",
     keywords: ["silicon", "siliconflow", "siliconcloud", "硅基"],
   },
   LongCat: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/longcat-color.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/longcat-color.webp",
     keywords: ["longcat"],
   },
   百灵: {
-    icon: "https://sf-maas-uat-prod.oss-cn-shanghai.aliyuncs.com/Model_LOGO/ling.png",
+    icon:
+      "https://sf-maas-uat-prod.oss-cn-shanghai.aliyuncs.com/Model_LOGO/ling.png",
     keywords: ["Ling", "Ring", "百灵"],
   },
   Mistral: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/mistral-color.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/mistral-color.webp",
     keywords: ["mistral", "codestral"],
   },
   豆包: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/doubao-color.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/doubao-color.webp",
     keywords: ["doubao", "豆包", "seed"],
   },
   BAAI: {
-    icon: "https://sf-maas-uat-prod.oss-cn-shanghai.aliyuncs.com/Model_LOGO/BAAI.svg",
+    icon:
+      "https://sf-maas-uat-prod.oss-cn-shanghai.aliyuncs.com/Model_LOGO/BAAI.svg",
     keywords: ["baai", "bge"],
   },
   小米: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/xiaomimimo.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/xiaomimimo.webp",
     keywords: ["xiaomi", "小米", "mimo"],
   },
   文心一言: {
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/wenxin-color.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/wenxin-color.webp",
     keywords: ["yiyan", "一言", "wenxin", "文心", "baidu", "百度", "ernie"],
   },
   default: { // 默认组
     name: "其他",
-    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/openai.webp",
+    icon:
+      "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/openai.webp",
   },
 };
 
@@ -125,18 +163,25 @@ function groupModelsByKeywords(models: string[]): Record<string, string[]> {
 
     // 按照定义的顺序遍历组，进行匹配
     for (const groupName in GROUP_CONFIG) {
-      const config = GROUP_CONFIG[groupName as keyof typeof GROUP_CONFIG];
+      const config = GROUP_CONFIG[groupName];
       // 确保 'default' 组不会被关键词匹配
-      if (groupName === 'default' || !config.keywords) continue;
+      if (groupName === "default") continue;
 
-      if (config.keywords.some(keyword => modelLower.includes(keyword.toLowerCase()))) {
+      // 类型保护：检查是否有 keywords 属性
+      if (!("keywords" in config)) continue;
+
+      if (
+        config.keywords.some((keyword: string) =>
+          modelLower.includes(keyword.toLowerCase())
+        )
+      ) {
         assignedGroupName = groupName;
         break; // 匹配成功后，立即停止遍历
       }
     }
 
     // 如果没有匹配到任何组，则分配给默认组 'default'
-    const finalGroupName = assignedGroupName || 'default';
+    const finalGroupName = assignedGroupName || "default";
 
     if (!groups[finalGroupName]) {
       groups[finalGroupName] = [];
@@ -153,7 +198,8 @@ function groupModelsByKeywords(models: string[]): Record<string, string[]> {
  * @returns 图标URL
  */
 function getGroupIcon(groupName: string): string {
-  return GROUP_CONFIG[groupName as keyof typeof GROUP_CONFIG]?.icon || GROUP_CONFIG.default.icon;
+  const config = GROUP_CONFIG[groupName];
+  return config?.icon || GROUP_CONFIG.default.icon;
 }
 
 // ==================== API 调用 ====================
@@ -226,7 +272,8 @@ function generateModelCard(model: string, groupName: string): string {
 }
 
 function generateGroupSection(groupName: string, models: string[]): string {
-  const displayName = GROUP_CONFIG[groupName]?.name || groupName;
+  const config = GROUP_CONFIG[groupName];
+  const displayName = "name" in config ? config.name : groupName;
   return `
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="p-5 cursor-pointer hover:bg-gray-50 transition-colors" 
@@ -252,7 +299,9 @@ function generateGroupSection(groupName: string, models: string[]): string {
             <div id="content-${groupName}" class="border-t border-gray-100">
                 <div class="p-5">
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                        ${models.map((model) => generateModelCard(model, groupName)).join("")}
+                        ${
+    models.map((model) => generateModelCard(model, groupName)).join("")
+  }
                     </div>
                 </div>
             </div>
@@ -263,7 +312,9 @@ function generateGroupSection(groupName: string, models: string[]): string {
 function generateHtml(models: string[] | null, error: string | null): string {
   const groupedModels = models ? groupModelsByKeywords(models) : null;
   const groupNames = groupedModels
-    ? Object.keys(groupedModels).sort((a, b) => groupedModels[b].length - groupedModels[a].length)
+    ? Object.keys(groupedModels).sort((a, b) =>
+      groupedModels[b].length - groupedModels[a].length
+    )
     : [];
 
   return `
@@ -288,7 +339,9 @@ function generateHtml(models: string[] | null, error: string | null): string {
         <div class="max-w-7xl mx-auto">
             ${generateHeader()}
             
-            ${groupedModels ? `
+            ${
+    groupedModels
+      ? `
             <div class="glass-effect rounded-2xl p-4 mb-8 inline-block mx-auto block text-center shadow-lg">
                 <div class="flex items-center justify-center space-x-6 text-sm">
                     <div class="flex items-center space-x-2">
@@ -298,11 +351,15 @@ function generateHtml(models: string[] | null, error: string | null): string {
                     <div class="w-px h-4 bg-gray-300"></div>
                     <div class="flex items-center space-x-2">
                         <i class="fas fa-microchip text-purple-600"></i>
-                        <span class="text-gray-700">${models!.length} 个模型</span>
+                        <span class="text-gray-700">${
+        models!.length
+      } 个模型</span>
                     </div>
                 </div>
             </div>
-            ` : ""}
+            `
+      : ""
+  }
             
             <div id="notification" class="notification-hidden fixed top-6 right-6 px-5 py-3 rounded-xl z-50 text-white font-medium bg-gradient-to-r from-green-500 to-emerald-600 shadow-2xl transition-all duration-300 ease-out">
                 <div class="flex items-center space-x-2">
@@ -311,7 +368,9 @@ function generateHtml(models: string[] | null, error: string | null): string {
                 </div>
             </div>
             
-            ${error ? `
+            ${
+    error
+      ? `
             <div class="bg-white rounded-2xl p-8 text-center max-w-2xl mx-auto mb-8 shadow-lg border border-red-100">
                 <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i class="fas fa-exclamation-triangle text-red-600 text-2xl"></i>
@@ -319,13 +378,22 @@ function generateHtml(models: string[] | null, error: string | null): string {
                 <h3 class="text-xl font-semibold text-gray-900 mb-2">连接错误</h3>
                 <p class="text-gray-600">${error}</p>
             </div>
-            ` : ""}
+            `
+      : ""
+  }
             
-            ${groupedModels ? `
+            ${
+    groupedModels
+      ? `
             <div class="space-y-6">
-                ${groupNames.map((groupName) => generateGroupSection(groupName, groupedModels![groupName])).join("")}
+                ${
+        groupNames.map((groupName) =>
+          generateGroupSection(groupName, groupedModels![groupName])
+        ).join("")
+      }
             </div>
-            ` : `
+            `
+      : `
             <div class="bg-white rounded-2xl p-12 text-center max-w-2xl mx-auto shadow-lg">
                 <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
                     <i class="fas fa-robot text-gray-400 text-3xl"></i>
@@ -333,7 +401,8 @@ function generateHtml(models: string[] | null, error: string | null): string {
                 <h3 class="text-xl font-semibold text-gray-900 mb-2">暂无模型可用</h3>
                 <p class="text-gray-500">请检查API配置或稍后重试</p>
             </div>
-            `}
+            `
+  }
         </div>
     </div>
     
