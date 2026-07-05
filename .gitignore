@@ -10,3 +10,6 @@ config.json
 
 # 依赖
 node_modules/
+
+.vercel
+.env*

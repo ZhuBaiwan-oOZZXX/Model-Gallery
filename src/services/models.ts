@@ -23,9 +23,7 @@ export function groupModels(models: string[]): Record<string, string[]> {
   return groups;
 }
 
-export async function fetchModels(
-  site: SiteConfig,
-): Promise<{ models: string[] | null; error: string | null }> {
+export async function fetchModels(site: SiteConfig): Promise<{ models: string[] | null; error: string | null }> {
   try {
     const url = `${site.apiUrl.replace(/\/$/, "")}/${site.apiEndpoint.replace(/^\//, "")}`;
     const response = await fetch(url, {
