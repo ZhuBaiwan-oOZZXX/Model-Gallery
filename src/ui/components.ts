@@ -1,5 +1,4 @@
-import type { AppState } from "../state.ts";
-import { getCurrentSite } from "../state.ts";
+import type { AppConfig, SiteConfig } from "../types.ts";
 import { getGroupDisplayName, getGroupIcon } from "../config/groupConfig.ts";
 
 export function renderThemeToggle(): string {
@@ -12,10 +11,10 @@ export function renderThemeToggle(): string {
     </button>`;
 }
 
-export function renderSiteSelector(state: AppState): string {
-  if (state.appConfig.sites.length <= 1) return "";
+export function renderSiteSelector(appConfig: AppConfig, currentSiteName: string): string {
+  if (appConfig.sites.length <= 1) return "";
 
-  const otherSites = state.appConfig.sites.filter((s) => s.name !== state.currentSiteName);
+  const otherSites = appConfig.sites.filter((s) => s.name !== currentSiteName);
 
   return `
     <div class="fixed top-4 left-4 z-50">
@@ -25,16 +24,16 @@ export function renderSiteSelector(state: AppState): string {
           <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
-      <div id="siteSelectorDropdown" 
+      <div id="siteSelectorDropdown"
         class="absolute top-full left-0 mt-2 w-48 bg-[var(--bg-card-solid)]/95 backdrop-blur-xl rounded-xl border border-[var(--border-medium)] shadow-[var(--shadow-xl)] opacity-0 invisible transition-all duration-200">
         ${
     otherSites
       .map(
         (site) => `
-          <button onclick="switchSite('${site.name}')" 
-            class="w-full text-left px-4 py-3 text-sm text-[var(--text-primary)] hover:bg-[var(--hover-bg)] first:rounded-t-xl last:rounded-b-xl transition-colors">
+          <a href="/?site=${encodeURIComponent(site.name)}"
+            class="block w-full text-left px-4 py-3 text-sm text-[var(--text-primary)] hover:bg-[var(--hover-bg)] first:rounded-t-xl last:rounded-b-xl transition-colors">
             ${site.name}
-          </button>
+          </a>
         `,
       )
       .join("")
@@ -43,9 +42,10 @@ export function renderSiteSelector(state: AppState): string {
     </div>`;
 }
 
-export function renderRefreshButton(): string {
+export function renderRefreshButton(currentSiteName: string): string {
+  const href = currentSiteName ? `/?site=${encodeURIComponent(currentSiteName)}` : "/";
   return `
-    <a href="/refresh" class="fixed bottom-6 right-6 z-50 w-12 h-12 flex items-center justify-center rounded-full bg-[var(--text-primary)] hover:opacity-90 text-[var(--bg-gradient-start)] shadow-[var(--shadow-xl)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.3)] transition-all duration-200 active:scale-95">
+    <a href="${href}" class="fixed bottom-6 right-6 z-50 w-12 h-12 flex items-center justify-center rounded-full bg-[var(--text-primary)] hover:opacity-90 text-[var(--bg-gradient-start)] shadow-[var(--shadow-xl)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.3)] transition-all duration-200 active:scale-95">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 12a9 9 0 11-3-6.7"/>
         <path d="M21 3v6h-6"/>
@@ -53,10 +53,7 @@ export function renderRefreshButton(): string {
     </a>`;
 }
 
-export function renderHeader(state: AppState, groupCount: number, modelCount: number): string {
-  const site = getCurrentSite(state);
-  if (!site) return "";
-
+export function renderHeader(site: SiteConfig, groupCount: number, modelCount: number): string {
   return `
     <header class="animate-in flex items-center justify-between mb-10 rounded-[20px] px-6 py-4 bg-[var(--bg-card)] backdrop-blur-xl border border-[var(--border-white)] shadow-[var(--shadow-lg)]">
       <div class="flex items-center space-x-5">

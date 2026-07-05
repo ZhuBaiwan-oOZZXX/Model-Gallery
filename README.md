@@ -1,39 +1,33 @@
 # Model Gallery
 
-一个优雅的 AI 模型列表展示工具，自适应颜色主题，自动将获取到的模型按关键词分组，支持多站点切换。专为 NewAPI、OneAPI、DenoHub 等 OpenAI 兼容接口设计。
+一个优雅的 AI 模型列表展示工具，自适应颜色主题，自动将获取到的模型按关键词分组，支持多站点切换。专为 NewAPI、OneAPI、DoneHub 等 OpenAI 兼容接口设计。
 
-| 浅色模式                                   | 深色模式                                  |
-| ------------------------------------------ | ----------------------------------------- |
-| ![模型列表展示](./assets/images/light.png) | ![模型列表展示](./assets/images/dark.png) |
+| 浅色模式                                 | 深色模式                                |
+| ---------------------------------------- | --------------------------------------- |
+| ![模型列表展示](./docs/images/light.png) | ![模型列表展示](./docs/images/dark.png) |
 
 ## 🚀 快速开始
 
 ### 本地运行
 
-1. 安装 Deno（参考 [官方文档](https://docs.deno.com/runtime/getting_started/installation/)）
-2. 复制配置文件示例并编辑：
+1. 安装 Node.js 23.6+
+2. 在项目根目录编辑 `config.json` 文件，填入你的站点配置（参考下方配置说明）
+3. 安装依赖并启动开发服务器：
    ```bash
-   cp config.example.json config.json
-   # 编辑 config.json 文件，填入你的配置
+   npm install
+   npm run dev
    ```
-3. 运行项目：
-   ```bash
-   deno task app
-   ```
-4. 打开浏览器访问 `http://localhost:8000`
+4. 打开浏览器访问 `http://localhost:3000`
 
-### Deno Deploy 部署
+### Vercel 部署
 
 1. Fork 项目到你的 GitHub 账号
-2. 登录 [Deno Deploy platform](https://console.deno.com)
-3. 点击 `+ New app` 并选择你的 GitHub 账号
-4. 点击 `Select repository` 选择 Model Gallery
-5. 点击 `Edit app config` 编辑项目配置，确认 Entrypoint 为 `src/main.ts`（通常自动会识别）
-6. 点击 `ADD Environment Variables` 添加环境变量：
-   - **Variable Name**: `CONFIG_JSON`
-   - **Variable Value**: 你的配置文件内容
-   - 完成后点击 `Save` 保存
-7. 点击 `Create App` 等待应用部署完成，打开 `https://model-gallery.<your-deno-organization-slug>.deno.net` 即可访问
+2. 登录 [Vercel](https://vercel.com)，点击 `Add New Project`
+3. 选择你 Fork 的仓库并导入
+4. 在 `Environment Variables` 中添加：
+   - **Name**: `CONFIG_JSON`
+   - **Value**: 你的配置文件 JSON 内容
+5. 点击 `Deploy` 等待部署完成，即可通过 `https://your-project.vercel.app` 访问
 
 ## ⚙️ 配置说明
 
@@ -107,10 +101,10 @@
 }
 ```
 
-### `config.json` 配置字段说明
+### 配置字段说明
 
 > [!TIP]
-> 整个 `config.json` 文件的配置内容，可通过环境变量 `CONFIG_JSON` 传入，环境变量优先级高于文件内容。
+> 配置通过 `CONFIG_JSON` 环境变量或 `config.json` 文件提供，环境变量优先。本地开发时编辑 `config.json`（可参考 `config.example.json`）；Vercel 部署时请将配置内容作为 `CONFIG_JSON` 环境变量的值填入。
 
 #### sites 站点配置
 

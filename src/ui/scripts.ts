@@ -72,15 +72,6 @@ export const JS_SCRIPTS = `
     dropdown.classList.toggle('visible', siteSelectorOpen);
   }
 
-  function switchSite(siteName) {
-    fetch('/switch-site', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ site: siteName })
-    }).then(() => window.location.reload())
-      .catch(err => console.error('切换站点失败:', err));
-  }
-
   document.addEventListener('click', (e) => {
     const selector = document.getElementById('siteSelectorBtn');
     const dropdown = document.getElementById('siteSelectorDropdown');

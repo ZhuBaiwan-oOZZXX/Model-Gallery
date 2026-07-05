@@ -34,9 +34,3 @@ export interface AppConfig {
 export interface ModelResponse {
   data?: { id: string }[];
 }
-
-export interface CacheEntry {
-  models: string[] | null;
-  error: string | null;
-  timestamp: number;
-}

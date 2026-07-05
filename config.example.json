@@ -6,7 +6,7 @@
       "apiKey": "sk-xxxxxxxxxxxxxxxxxxxxxxxx",
       "apiEndpoint": "/v1/models",
       "externalUrl": "https://openai.com",
-      "iconUrl": "https://docs.newapi.pro/assets/logo.png"
+      "iconUrl": "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/openai.webp"
     },
     {
       "name": "自定义站点1",

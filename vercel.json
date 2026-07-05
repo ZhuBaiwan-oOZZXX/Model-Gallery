@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "src/api/index.ts",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": "src/assets/favicon.svg"
+      }
+    }
+  ],
+  "rewrites": [
+    { "source": "/", "destination": "/src/api/index" },
+    { "source": "/favicon.svg", "destination": "/src/api/index" }
+  ]
+}

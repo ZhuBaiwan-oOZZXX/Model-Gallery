@@ -1,11 +1,8 @@
-import type { ModelResponse } from "../types.ts";
-import type { AppState } from "../state.ts";
+import type { ModelResponse, SiteConfig } from "../types.ts";
 import { GROUP_RULES } from "../config/groupConfig.ts";
-import { getCachedModels, getCurrentSite, setCachedModels } from "../state.ts";
 
 export function groupModels(models: string[]): Record<string, string[]> {
   const groups: Record<string, string[]> = {};
-
   for (const model of models) {
     const modelLower = model.toLowerCase();
     let groupName = "default";
@@ -26,12 +23,9 @@ export function groupModels(models: string[]): Record<string, string[]> {
   return groups;
 }
 
-async function fetchModelsFromApi(state: AppState): Promise<{ models: string[] | null; error: string | null }> {
-  const site = getCurrentSite(state);
-  if (!site) {
-    return { models: null, error: "没有可用的站点配置" };
-  }
-
+export async function fetchModels(
+  site: SiteConfig,
+): Promise<{ models: string[] | null; error: string | null }> {
   try {
     const url = `${site.apiUrl.replace(/\/$/, "")}/${site.apiEndpoint.replace(/^\//, "")}`;
     const response = await fetch(url, {
@@ -57,18 +51,4 @@ async function fetchModelsFromApi(state: AppState): Promise<{ models: string[] |
   } catch (error) {
     return { models: null, error: (error as Error).message };
   }
-}
-
-export async function fetchModels(
-  state: AppState,
-  forceRefresh = false,
-): Promise<{ models: string[] | null; error: string | null }> {
-  if (!forceRefresh) {
-    const cached = getCachedModels(state);
-    if (cached) return { models: cached.models, error: cached.error };
-  }
-
-  const result = await fetchModelsFromApi(state);
-  setCachedModels(state, result.models, result.error);
-  return result;
 }

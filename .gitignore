@@ -1,6 +1,12 @@
-﻿# 编辑器配置
+# 编辑器配置
 .trae/
 
 # 配置文件与密钥
-config*.json
-.env
+configs/
+config.json
+
+# Vercel
+.vercel/
+
+# 依赖
+node_modules/

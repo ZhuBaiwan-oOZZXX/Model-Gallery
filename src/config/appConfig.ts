@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import type { AppConfig } from "../types.ts";
 import { BUILTIN_GROUP_NAMES } from "./groupConfig.ts";
 
@@ -9,7 +11,7 @@ const DEFAULT_SITE_CONFIG = {
 
 function validateConfig(config: AppConfig): void {
   if (!config.sites || config.sites.length === 0) {
-    throw new Error("配置错误: sites 为空，请检查 config.json 或 CONFIG_JSON 环境变量");
+    throw new Error("配置错误: sites 为空，请检查 CONFIG_JSON 环境变量");
   }
 
   for (const site of config.sites) {
@@ -76,7 +78,7 @@ function validateConfig(config: AppConfig): void {
 }
 
 async function loadConfig(): Promise<AppConfig> {
-  const configFromEnv = Deno.env.get("CONFIG_JSON");
+  const configFromEnv = process.env.CONFIG_JSON;
   if (configFromEnv) {
     try {
       return JSON.parse(configFromEnv);
@@ -86,10 +88,14 @@ async function loadConfig(): Promise<AppConfig> {
   }
 
   try {
-    const configText = await Deno.readTextFile("./config.json");
-    return JSON.parse(configText);
-  } catch {
-    throw new Error("未找到 config.json 文件，请创建配置文件或设置 CONFIG_JSON 环境变量");
+    const filePath = path.join(process.cwd(), "config.json");
+    const fileContent = await readFile(filePath, "utf-8");
+    return JSON.parse(fileContent);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error("未设置 CONFIG_JSON 环境变量，且本地 config.json 不存在");
+    }
+    throw new Error(`读取 config.json 失败: ${(err as Error).message}`);
   }
 }
 
