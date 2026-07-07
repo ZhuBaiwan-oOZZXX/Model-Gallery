@@ -1,12 +1,8 @@
-import type { CustomGroupRule, GroupConfig } from "../types.ts";
-
-export interface GroupRule extends GroupConfig {
-  name: string;
-}
+import type { CustomGroupRule, GroupRule } from "../types.ts";
 
 const DEFAULT_ICON = "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/openai.webp";
 
-export const GROUP_RULES: GroupRule[] = [
+export const BUILTIN_GROUP_RULES: readonly GroupRule[] = [
   { name: "OpenAI", icon: DEFAULT_ICON, keywords: ["gpt", "dall", "chatgpt", "codex"] },
   {
     name: "Gemini",
@@ -151,21 +147,14 @@ export const GROUP_RULES: GroupRule[] = [
   { name: "default", icon: DEFAULT_ICON },
 ];
 
-export const BUILTIN_GROUP_NAMES = GROUP_RULES.map((r) => r.name);
+export const BUILTIN_GROUP_NAMES = BUILTIN_GROUP_RULES.map((r) => r.name);
 
-export function getGroupIcon(groupName: string): string {
-  const rule = GROUP_RULES.find((r) => r.name === groupName);
-  return rule?.icon || DEFAULT_ICON;
-}
+export function buildGroupRules(customRules?: CustomGroupRule[]): GroupRule[] {
+  const rules = [...BUILTIN_GROUP_RULES];
 
-export function getGroupDisplayName(groupName: string): string {
-  if (groupName === "default") return "其他";
-  const rule = GROUP_RULES.find((r) => r.name === groupName);
-  return rule?.name || groupName;
-}
-
-export function applyCustomGroupRules(customRules?: CustomGroupRule[]): void {
-  if (!customRules || customRules.length === 0) return;
+  if (!customRules || customRules.length === 0) {
+    return rules;
+  }
 
   const firstRules: GroupRule[] = [];
   const beforeRules: Array<{ rule: GroupRule; target: string }> = [];
@@ -190,21 +179,56 @@ export function applyCustomGroupRules(customRules?: CustomGroupRule[]): void {
   }
 
   if (firstRules.length > 0) {
-    GROUP_RULES.unshift(...firstRules);
+    rules.unshift(...firstRules);
   }
 
   for (const { rule, target } of beforeRules) {
     const targetLower = target.toLowerCase();
-    const targetIndex = GROUP_RULES.findIndex((r) => r.name.toLowerCase() === targetLower);
+    const targetIndex = rules.findIndex((r) => r.name.toLowerCase() === targetLower);
     if (targetIndex !== -1) {
-      GROUP_RULES.splice(targetIndex, 0, rule);
+      rules.splice(targetIndex, 0, rule);
     } else {
       console.warn(`[警告] 无法找到目标分组 "${target}"，自定义分组 "${rule.name}" 将插入到最前位置`);
-      GROUP_RULES.unshift(rule);
+      rules.unshift(rule);
     }
   }
 
   if (lastRules.length > 0) {
-    GROUP_RULES.push(...lastRules);
+    rules.push(...lastRules);
   }
+
+  return rules;
+}
+
+export function getGroupIcon(groupName: string, rules: GroupRule[] = [...BUILTIN_GROUP_RULES]): string {
+  const rule = rules.find((r) => r.name === groupName);
+  return rule?.icon || DEFAULT_ICON;
+}
+
+export function getGroupDisplayName(groupName: string, rules: GroupRule[] = [...BUILTIN_GROUP_RULES]): string {
+  if (groupName === "default") return "其他";
+  const rule = rules.find((r) => r.name === groupName);
+  return rule?.name || groupName;
+}
+
+export function groupModels(models: string[], rules: GroupRule[]): Record<string, string[]> {
+  const groups: Record<string, string[]> = {};
+  for (const model of models) {
+    const modelLower = model.toLowerCase();
+    let groupName = "default";
+
+    for (const rule of rules) {
+      if (rule.name === "default") continue;
+
+      if (rule.keywords?.some((kw) => modelLower.includes(kw.toLowerCase()))) {
+        groupName = rule.name;
+        break;
+      }
+    }
+
+    if (!groups[groupName]) groups[groupName] = [];
+    groups[groupName].push(model);
+  }
+
+  return groups;
 }

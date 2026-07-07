@@ -1,17 +1,15 @@
 import { test, describe, afterEach, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { loadAppConfig } from "../config/appConfig.ts";
 import { groupModels } from "../services/models.ts";
-import { applyCustomGroupRules, GROUP_RULES } from "../config/groupConfig.ts";
+import { buildGroupRules } from "../config/groupConfig.ts";
 import type { CustomGroupRule } from "../types.ts";
 
-const ORIGINAL_GROUP_RULES = [...GROUP_RULES];
 const ORIGINAL_ENV = process.env.CONFIG_JSON;
-
-function resetGroupRules(): void {
-  GROUP_RULES.length = 0;
-  GROUP_RULES.push(...ORIGINAL_GROUP_RULES);
-}
+let tempDir: string | undefined;
 
 function setEnv(config: unknown): void {
   process.env.CONFIG_JSON = JSON.stringify(config);
@@ -21,18 +19,23 @@ function clearEnv(): void {
   delete process.env.CONFIG_JSON;
 }
 
+async function writeConfigFixture(config: unknown): Promise<string> {
+  tempDir ??= await mkdtemp(join(tmpdir(), "model-gallery-config-test-"));
+  const filePath = join(tempDir, `config-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  await writeFile(filePath, JSON.stringify(config), "utf-8");
+  return filePath;
+}
+
 describe("配置加载", () => {
   before(() => {
     delete process.env.CONFIG_JSON;
   });
 
-  after(() => {
+  after(async () => {
     if (ORIGINAL_ENV) process.env.CONFIG_JSON = ORIGINAL_ENV;
     else delete process.env.CONFIG_JSON;
-    resetGroupRules();
+    if (tempDir) await rm(tempDir, { recursive: true, force: true });
   });
-
-  afterEach(() => resetGroupRules());
 
   test("环境变量 CONFIG_JSON 优先加载", async () => {
     setEnv({
@@ -44,11 +47,14 @@ describe("配置加载", () => {
     assert.equal(config.defaultSite, "环境站点");
   });
 
-  test("无环境变量时从 config.json 文件加载", async () => {
+  test("无环境变量时从指定配置文件加载", async () => {
     clearEnv();
-    const config = await loadAppConfig();
-    assert.ok(config.sites.length > 0, "应从 config.json 加载到站点");
-    assert.ok(config.defaultSite, "应有默认站点");
+    const configPath = await writeConfigFixture({
+      sites: [{ name: "文件站点", apiUrl: "https://file.com", apiKey: "sk-file" }],
+    });
+    const config = await loadAppConfig(configPath);
+    assert.equal(config.sites[0].name, "文件站点");
+    assert.equal(config.defaultSite, "文件站点");
   });
 
   test("CONFIG_JSON JSON 格式错误时抛错", async () => {
@@ -62,10 +68,7 @@ describe("normalizeConfig 默认值填充", () => {
   after(() => {
     if (ORIGINAL_ENV) process.env.CONFIG_JSON = ORIGINAL_ENV;
     else delete process.env.CONFIG_JSON;
-    resetGroupRules();
   });
-
-  afterEach(() => resetGroupRules());
 
   test("apiEndpoint 默认 /v1/models", async () => {
     setEnv({
@@ -132,10 +135,7 @@ describe("validateConfig 错误检测", () => {
   after(() => {
     if (ORIGINAL_ENV) process.env.CONFIG_JSON = ORIGINAL_ENV;
     else delete process.env.CONFIG_JSON;
-    resetGroupRules();
   });
-
-  afterEach(() => resetGroupRules());
 
   test("sites 为空时抛错", async () => {
     setEnv({ sites: [] });
@@ -163,6 +163,20 @@ describe("validateConfig 错误检测", () => {
       defaultSite: "不存在的站点",
     });
     await assert.rejects(() => loadAppConfig(), /不在 sites 列表中/);
+  });
+
+  test("externalUrl 使用非 http/https 协议时抛错", async () => {
+    setEnv({
+      sites: [{ name: "测试", apiUrl: "https://api.com", apiKey: "sk-1", externalUrl: "javascript:alert(1)" }],
+    });
+    await assert.rejects(() => loadAppConfig(), /externalUrl 必须是 http:\/\/ 或 https:\/\/ 协议/);
+  });
+
+  test("iconUrl 使用非 http/https 协议时抛错", async () => {
+    setEnv({
+      sites: [{ name: "测试", apiUrl: "https://api.com", apiKey: "sk-1", iconUrl: "data:image/svg+xml,<svg></svg>" }],
+    });
+    await assert.rejects(() => loadAppConfig(), /iconUrl 必须是 http:\/\/ 或 https:\/\/ 协议/);
   });
 
   test("customGroupRules name 与内置分组重复时抛错", async () => {
@@ -233,59 +247,59 @@ describe("validateConfig 错误检测", () => {
   });
 });
 
-describe("分组逻辑 - 内置分组", () => {
-  afterEach(() => resetGroupRules());
+const DEFAULT_RULES = buildGroupRules();
 
+describe("分组逻辑 - 内置分组", () => {
   test("GPT 模型归入 OpenAI", () => {
-    const result = groupModels(["gpt-4", "gpt-3.5-turbo"]);
+    const result = groupModels(["gpt-4", "gpt-3.5-turbo"], DEFAULT_RULES);
     assert.ok(result["OpenAI"]);
     assert.equal(result["OpenAI"].length, 2);
   });
 
   test("Claude 模型归入 Claude", () => {
-    const result = groupModels(["claude-3-opus", "claude-3-sonnet"]);
+    const result = groupModels(["claude-3-opus", "claude-3-sonnet"], DEFAULT_RULES);
     assert.ok(result["Claude"]);
     assert.equal(result["Claude"].length, 2);
   });
 
   test("Gemini 模型归入 Gemini", () => {
-    const result = groupModels(["gemini-pro", "gemini-1.5-flash"]);
+    const result = groupModels(["gemini-pro", "gemini-1.5-flash"], DEFAULT_RULES);
     assert.ok(result["Gemini"]);
   });
 
   test("DeepSeek 模型归入 DeepSeek", () => {
-    const result = groupModels(["deepseek-chat", "deepseek-coder"]);
+    const result = groupModels(["deepseek-chat", "deepseek-coder"], DEFAULT_RULES);
     assert.ok(result["DeepSeek"]);
   });
 
   test("Qwen 模型归入 Qwen", () => {
-    const result = groupModels(["qwen-max", "qwq-32b"]);
+    const result = groupModels(["qwen-max", "qwq-32b"], DEFAULT_RULES);
     assert.ok(result["Qwen"]);
   });
 
   test("智谱模型归入 智谱", () => {
-    const result = groupModels(["glm-4", "codegeex-2"]);
+    const result = groupModels(["glm-4", "codegeex-2"], DEFAULT_RULES);
     assert.ok(result["智谱"]);
   });
 
   test("中文关键词 - 通义归入 Qwen", () => {
-    const result = groupModels(["通义千问-max"]);
+    const result = groupModels(["通义千问-max"], DEFAULT_RULES);
     assert.ok(result["Qwen"]);
   });
 
   test("中文关键词 - 智谱归入 智谱", () => {
-    const result = groupModels(["智谱glm-4"]);
+    const result = groupModels(["智谱glm-4"], DEFAULT_RULES);
     assert.ok(result["智谱"]);
   });
 
   test("未匹配的模型归入 default", () => {
-    const result = groupModels(["unknown-model-xyz"]);
+    const result = groupModels(["unknown-model-xyz"], DEFAULT_RULES);
     assert.ok(result["default"]);
     assert.equal(result["default"].length, 1);
   });
 
   test("大小写不敏感匹配", () => {
-    const result = groupModels(["GPT-4", "Claude-3", "DEEPSEEK-chat"]);
+    const result = groupModels(["GPT-4", "Claude-3", "DEEPSEEK-chat"], DEFAULT_RULES);
     assert.ok(result["OpenAI"], "GPT-4 应归入 OpenAI");
     assert.ok(result["Claude"], "Claude-3 应归入 Claude");
     assert.ok(result["DeepSeek"], "DEEPSEEK-chat 应归入 DeepSeek");
@@ -293,92 +307,72 @@ describe("分组逻辑 - 内置分组", () => {
 });
 
 describe("分组逻辑 - 自定义分组", () => {
-  afterEach(() => resetGroupRules());
-
   test("first 位置插入到最前", () => {
-    applyCustomGroupRules([
-      { name: "自定义首", keywords: ["custom-first"], position: { type: "first" } },
-    ]);
-    assert.equal(GROUP_RULES[0].name, "自定义首");
+    const rules = buildGroupRules([{ name: "自定义首", keywords: ["custom-first"], position: { type: "first" } }]);
+    assert.equal(rules[0].name, "自定义首");
   });
 
   test("last 位置插入到最后", () => {
-    applyCustomGroupRules([
-      { name: "自定义尾", keywords: ["custom-last"], position: { type: "last" } },
-    ]);
-    const last = GROUP_RULES[GROUP_RULES.length - 1];
+    const rules = buildGroupRules([{ name: "自定义尾", keywords: ["custom-last"], position: { type: "last" } }]);
+    const last = rules[rules.length - 1];
     assert.equal(last.name, "自定义尾");
   });
 
   test("before 位置插入到目标前", () => {
-    applyCustomGroupRules([
-      { name: "插入OpenAI前", keywords: ["before-openai"], position: { type: "before", target: "OpenAI" } },
-    ]);
-    const idx = GROUP_RULES.findIndex((r) => r.name === "插入OpenAI前");
-    const openaiIdx = GROUP_RULES.findIndex((r) => r.name === "OpenAI");
+    const rules = buildGroupRules([{ name: "插入OpenAI前", keywords: ["before-openai"], position: { type: "before", target: "OpenAI" } }]);
+    const idx = rules.findIndex((r) => r.name === "插入OpenAI前");
+    const openaiIdx = rules.findIndex((r) => r.name === "OpenAI");
     assert.notEqual(idx, -1);
     assert.notEqual(openaiIdx, -1);
     assert.equal(idx + 1, openaiIdx, "自定义分组应在 OpenAI 前");
   });
 
   test("无 position 默认 first", () => {
-    applyCustomGroupRules([
-      { name: "默认位置", keywords: ["default-pos"] },
-    ]);
-    assert.equal(GROUP_RULES[0].name, "默认位置");
+    const rules = buildGroupRules([{ name: "默认位置", keywords: ["default-pos"] }]);
+    assert.equal(rules[0].name, "默认位置");
   });
 
   test("icon 缺省时用默认图标", () => {
-    applyCustomGroupRules([
-      { name: "无图标分组", keywords: ["no-icon"] },
-    ]);
-    const rule = GROUP_RULES.find((r) => r.name === "无图标分组");
+    const rules = buildGroupRules([{ name: "无图标分组", keywords: ["no-icon"] }]);
+    const rule = rules.find((r) => r.name === "无图标分组");
     assert.ok(rule);
     assert.ok(rule!.icon, "应有默认图标");
   });
 
   test("自定义 icon 生效", () => {
     const customIcon = "https://example.com/custom.png";
-    applyCustomGroupRules([
-      { name: "自定义图标", keywords: ["ci"], icon: customIcon },
-    ]);
-    const rule = GROUP_RULES.find((r) => r.name === "自定义图标");
+    const rules = buildGroupRules([{ name: "自定义图标", keywords: ["ci"], icon: customIcon }]);
+    const rule = rules.find((r) => r.name === "自定义图标");
     assert.equal(rule!.icon, customIcon);
   });
 
   test("自定义分组关键词匹配模型", () => {
-    applyCustomGroupRules([
-      { name: "Safe分组", keywords: ["safe"] },
-    ]);
-    const result = groupModels(["safe-model", "gpt-4", "unknown"]);
+    const rules = buildGroupRules([{ name: "Safe分组", keywords: ["safe"] }]);
+    const result = groupModels(["safe-model", "gpt-4", "unknown"], rules);
     assert.ok(result["Safe分组"], "safe-model 应归入自定义分组");
     assert.ok(result["OpenAI"], "gpt-4 应归入 OpenAI");
     assert.ok(result["default"], "unknown 应归入 default");
   });
 
   test("自定义分组优先于内置分组匹配", () => {
-    applyCustomGroupRules([
-      { name: "优先分组", keywords: ["gpt"] },
-    ]);
-    const result = groupModels(["gpt-4"]);
+    const rules = buildGroupRules([{ name: "优先分组", keywords: ["gpt"] }]);
+    const result = groupModels(["gpt-4"], rules);
     assert.ok(result["优先分组"], "自定义分组应优先匹配");
     assert.ok(!result["OpenAI"], "OpenAI 不应匹配");
   });
 
   test("before 目标不存在时插入到最前", () => {
-    applyCustomGroupRules([
-      { name: "目标不存在", keywords: ["x"], position: { type: "before", target: "不存在的分组" } },
-    ]);
-    assert.equal(GROUP_RULES[0].name, "目标不存在");
+    const rules = buildGroupRules([{ name: "目标不存在", keywords: ["x"], position: { type: "before", target: "不存在的分组" } }]);
+    assert.equal(rules[0].name, "目标不存在");
   });
 
   test("多个自定义分组同时生效", () => {
-    applyCustomGroupRules([
+    const rules = buildGroupRules([
       { name: "首组", keywords: ["first-kw"], position: { type: "first" } },
       { name: "尾组", keywords: ["last-kw"], position: { type: "last" } },
       { name: "OpenAI前组", keywords: ["before-kw"], position: { type: "before", target: "OpenAI" } },
     ]);
-    const result = groupModels(["first-kw-model", "last-kw-model", "before-kw-model", "gpt-4"]);
+    const result = groupModels(["first-kw-model", "last-kw-model", "before-kw-model", "gpt-4"], rules);
     assert.ok(result["首组"]);
     assert.ok(result["尾组"]);
     assert.ok(result["OpenAI前组"]);

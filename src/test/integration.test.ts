@@ -1,0 +1,118 @@
+import { test, describe, before, after } from "node:test";
+import assert from "node:assert/strict";
+import http from "node:http";
+import type { Server } from "node:http";
+
+const ORIGINAL_FETCH = globalThis.fetch;
+
+const TEST_CONFIG = {
+  sites: [
+    {
+      name: "测试站点A",
+      apiUrl: "https://api.example.com",
+      apiKey: "sk-test-key-a",
+      apiEndpoint: "/v1/models",
+      externalUrl: "https://a.example.com",
+      iconUrl: "https://a.example.com/icon.png",
+    },
+    {
+      name: "测试站点B",
+      apiUrl: "https://api.b.example.com",
+      apiKey: "sk-test-key-b",
+      apiEndpoint: "/v1/models",
+      externalUrl: "https://b.example.com",
+      iconUrl: "https://b.example.com/icon.png",
+    },
+  ],
+  defaultSite: "测试站点A",
+};
+
+describe("集成测试：启动服务器后检测", () => {
+  let server: Server;
+  let baseUrl: string;
+  let handleRequest: (req: http.IncomingMessage, res: http.ServerResponse) => Promise<void>;
+
+  before(async () => {
+    process.env.TEST_SERVER = "1";
+    process.env.CONFIG_JSON = JSON.stringify(TEST_CONFIG);
+
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ data: [{ id: "gpt-4" }, { id: "claude-3" }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+
+    const module = await import("../api/index.ts");
+    handleRequest = module.default;
+
+    server = http.createServer((req, res) => {
+      void handleRequest(req, res);
+    });
+
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (address && typeof address === "object") {
+      baseUrl = `http://127.0.0.1:${address.port}`;
+    } else {
+      throw new Error("无法获取服务器地址");
+    }
+  });
+
+  after(async () => {
+    globalThis.fetch = ORIGINAL_FETCH;
+    delete process.env.TEST_SERVER;
+    delete process.env.CONFIG_JSON;
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  async function fetchText(path: string): Promise<{ status: number; text: string; contentType: string | null }> {
+    return new Promise((resolve, reject) => {
+      http
+        .get(`${baseUrl}${path}`, (res) => {
+          let data = "";
+          res.setEncoding("utf-8");
+          res.on("data", (chunk) => {
+            data += chunk;
+          });
+          res.on("end", () => {
+            resolve({ status: res.statusCode || 0, text: data, contentType: res.headers["content-type"] || null });
+          });
+        })
+        .on("error", reject);
+    });
+  }
+
+  test("主页返回 200，包含标题、默认站点和模型，且不泄露 API Key", async () => {
+    const { status, text } = await fetchText("/");
+
+    assert.equal(status, 200);
+    assert.ok(text.includes("Model Gallery"));
+    assert.ok(text.includes("测试站点A"));
+    assert.ok(text.includes("gpt-4"));
+    assert.ok(!text.includes("sk-test-key-a"));
+    assert.ok(!text.includes("sk-test-key-b"));
+  });
+
+  test("favicon 返回 200 且内容类型为 SVG", async () => {
+    const { status, text, contentType } = await fetchText("/favicon.svg");
+
+    assert.equal(status, 200);
+    assert.ok(contentType?.includes("image/svg+xml"));
+    assert.ok(text.includes("<svg"));
+  });
+
+  test("站点切换返回 200 并显示目标站点", async () => {
+    const { status, text } = await fetchText(`/?site=${encodeURIComponent("测试站点B")}`);
+
+    assert.equal(status, 200);
+    assert.ok(text.includes("测试站点B"));
+    assert.ok(!text.includes("sk-test-key-b"));
+  });
+
+  test("未知路径返回 200 并由 SSR 入口处理", async () => {
+    const { status, text } = await fetchText("/unknown-path");
+
+    assert.equal(status, 200);
+    assert.ok(text.includes("Model Gallery"));
+  });
+});

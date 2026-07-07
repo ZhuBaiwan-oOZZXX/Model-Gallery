@@ -4,6 +4,10 @@ export interface GroupConfig {
   keywords?: string[];
 }
 
+export interface GroupRule extends GroupConfig {
+  name: string;
+}
+
 export interface SiteConfig {
   name: string;
   apiUrl: string;

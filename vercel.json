@@ -9,6 +9,7 @@
   }],
   "routes": [
     { "src": "/", "dest": "/src/api/index.ts" },
-    { "src": "/favicon.svg", "dest": "/src/api/index.ts" }
+    { "src": "/favicon.svg", "dest": "/src/api/index.ts" },
+    { "src": "/(.*)", "dest": "/src/api/index.ts" }
   ]
 }

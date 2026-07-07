@@ -1,4 +1,4 @@
-import type { AppConfig, SiteConfig } from "../types.ts";
+import type { AppConfig, GroupRule, SiteConfig } from "../types.ts";
 import { groupModels } from "../services/models.ts";
 import {
   renderEmpty,
@@ -18,8 +18,9 @@ export function renderPage(
   site: SiteConfig,
   models: string[] | null,
   error: string | null,
+  rules: GroupRule[],
 ): string {
-  const groupedModels = models ? groupModels(models) : null;
+  const groupedModels = models ? groupModels(models, rules) : null;
   const groupNames = groupedModels
     ? Object.keys(groupedModels).sort((a, b) => groupedModels[b].length - groupedModels[a].length)
     : [];
@@ -28,7 +29,7 @@ export function renderPage(
   if (error) {
     content = renderError(error);
   } else if (groupedModels && groupNames.length > 0) {
-    content = groupNames.map((name, index) => renderGroupSection(name, groupedModels[name], index))
+    content = groupNames.map((name, index) => renderGroupSection(name, groupedModels[name], rules, index))
       .join("");
   } else {
     content = renderEmpty();

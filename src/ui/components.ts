@@ -1,5 +1,6 @@
-import type { AppConfig, SiteConfig } from "../types.ts";
+import type { AppConfig, GroupRule, SiteConfig } from "../types.ts";
 import { getGroupDisplayName, getGroupIcon } from "../config/groupConfig.ts";
+import { escapeAttribute, escapeHtml, escapeJsString, sanitizeUrl } from "./escape.ts";
 
 export function renderThemeToggle(): string {
   return `
@@ -26,18 +27,16 @@ export function renderSiteSelector(appConfig: AppConfig, currentSiteName: string
       </button>
       <div id="siteSelectorDropdown"
         class="absolute top-full left-0 mt-2 w-48 bg-[var(--bg-card-solid)]/95 backdrop-blur-xl rounded-xl border border-[var(--border-medium)] shadow-[var(--shadow-xl)] opacity-0 invisible transition-all duration-200">
-        ${
-    otherSites
-      .map(
-        (site) => `
-          <a href="/?site=${encodeURIComponent(site.name)}"
+        ${otherSites
+          .map(
+            (site) => `
+          <a href="${escapeAttribute(`/?site=${encodeURIComponent(site.name)}`)}"
             class="block w-full text-left px-4 py-3 text-sm text-[var(--text-primary)] hover:bg-[var(--hover-bg)] first:rounded-t-xl last:rounded-b-xl transition-colors">
-            ${site.name}
+            ${escapeHtml(site.name)}
           </a>
         `,
-      )
-      .join("")
-  }
+          )
+          .join("")}
       </div>
     </div>`;
 }
@@ -45,7 +44,7 @@ export function renderSiteSelector(appConfig: AppConfig, currentSiteName: string
 export function renderRefreshButton(currentSiteName: string): string {
   const href = currentSiteName ? `/?site=${encodeURIComponent(currentSiteName)}` : "/";
   return `
-    <a href="${href}" class="fixed bottom-6 right-6 z-50 w-12 h-12 flex items-center justify-center rounded-full bg-[var(--text-primary)] hover:opacity-90 text-[var(--bg-gradient-start)] shadow-[var(--shadow-xl)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.3)] transition-all duration-200 active:scale-95">
+    <a href="${escapeAttribute(href)}" class="fixed bottom-6 right-6 z-50 w-12 h-12 flex items-center justify-center rounded-full bg-[var(--text-primary)] hover:opacity-90 text-[var(--bg-gradient-start)] shadow-[var(--shadow-xl)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.3)] transition-all duration-200 active:scale-95">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 12a9 9 0 11-3-6.7"/>
         <path d="M21 3v6h-6"/>
@@ -54,15 +53,17 @@ export function renderRefreshButton(currentSiteName: string): string {
 }
 
 export function renderHeader(site: SiteConfig, groupCount: number, modelCount: number): string {
+  const safeExternalUrl = sanitizeUrl(site.externalUrl);
+  const safeIconUrl = sanitizeUrl(site.iconUrl, "");
   return `
     <header class="animate-in flex items-center justify-between mb-10 rounded-[20px] px-6 py-4 bg-[var(--bg-card)] backdrop-blur-xl border border-[var(--border-white)] shadow-[var(--shadow-lg)]">
       <div class="flex items-center space-x-5">
-        <a href="${site.externalUrl}" target="_blank" class="group">
+        <a href="${escapeAttribute(safeExternalUrl)}" target="_blank" class="group">
           <div class="logo-container w-16 h-16 rounded-[18px] bg-[var(--bg-card-solid)] p-1 shadow-[var(--logo-shadow)] overflow-hidden relative">
-            <img src="${site.iconUrl}" alt="站点图标" loading="lazy" class="w-full h-full rounded-[14px] object-cover">
+            ${safeIconUrl ? `<img src="${escapeAttribute(safeIconUrl)}" alt="站点图标" loading="lazy" class="w-full h-full rounded-[14px] object-cover">` : ""}
           </div>
         </a>
-        <h1 class="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">${site.name}</h1>
+        <h1 class="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">${escapeHtml(site.name)}</h1>
       </div>
       <div class="flex items-center space-x-4 mr-6">
         <div class="text-center">
@@ -90,15 +91,14 @@ export function renderNotification(): string {
     </div>`;
 }
 
-function renderModelCard(model: string, groupName: string): string {
+function renderModelCard(model: string, groupName: string, rules: GroupRule[]): string {
+  const groupIcon = getGroupIcon(groupName, rules);
   return `
     <div class="group relative bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] border border-[var(--border-light)] hover:border-[var(--border-medium)] rounded-2xl p-4 cursor-pointer shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] hover:-translate-y-px active:scale-[0.98] transition-all duration-200" 
-      onclick="copyToClipboard('${model}')">
+      onclick="copyToClipboard('${escapeAttribute(escapeJsString(model))}')">
       <div class="flex items-center space-x-3">
-        <img src="${
-    getGroupIcon(groupName)
-  }" alt="${groupName}" loading="lazy" class="w-9 h-9 rounded-[10px] object-cover flex-shrink-0">
-        <div class="flex-1 min-w-0 text-[13px] font-medium text-[var(--text-primary)] leading-snug break-all tracking-tight">${model}</div>
+        <img src="${escapeAttribute(groupIcon)}" alt="${escapeAttribute(groupName)}" loading="lazy" class="w-9 h-9 rounded-[10px] object-cover flex-shrink-0">
+        <div class="flex-1 min-w-0 text-[13px] font-medium text-[var(--text-primary)] leading-snug break-all tracking-tight">${escapeHtml(model)}</div>
       </div>
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" class="absolute top-3 right-3 text-[var(--text-secondary)] opacity-0 group-hover:opacity-100 transition-opacity duration-200">
         <path d="M4.5 2H11V8.5M11 2L3 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -106,33 +106,34 @@ function renderModelCard(model: string, groupName: string): string {
     </div>`;
 }
 
-export function renderGroupSection(groupName: string, models: string[], index: number = 0): string {
-  const displayName = getGroupDisplayName(groupName);
+export function renderGroupSection(groupName: string, models: string[], rules: GroupRule[], index: number = 0): string {
+  const displayName = getGroupDisplayName(groupName, rules);
   const delayClass = index < 5 ? `delay-${index + 1}` : "";
+  const groupIcon = getGroupIcon(groupName, rules);
 
   return `
-    <section class="animate-in ${delayClass} mb-6 rounded-[20px] bg-[var(--bg-card)] backdrop-blur-xl border border-[var(--border-white)] shadow-[var(--shadow-lg)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.06)] transition-shadow duration-400">
+    <section class="animate-in ${escapeAttribute(delayClass)} mb-6 rounded-[20px] bg-[var(--bg-card)] backdrop-blur-xl border border-[var(--border-white)] shadow-[var(--shadow-lg)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.06)] transition-shadow duration-400">
       <div class="flex items-center justify-between p-5 cursor-pointer select-none rounded-t-[20px] hover:bg-[var(--hover-bg)] transition-colors"
-        onclick="toggleGroup('${groupName}')">
+        onclick="toggleGroup('${escapeAttribute(escapeJsString(groupName))}')">
         <div class="flex items-center space-x-4">
           <div class="w-11 h-11 rounded-[14px] bg-[var(--bg-input)] flex items-center justify-center overflow-hidden">
-            <img src="${getGroupIcon(groupName)}" alt="${displayName}" loading="lazy" class="w-7 h-7 object-cover">
+            <img src="${escapeAttribute(groupIcon)}" alt="${escapeAttribute(displayName)}" loading="lazy" class="w-7 h-7 object-cover">
           </div>
           <div>
-            <h3 class="text-[17px] font-semibold text-[var(--text-primary)] tracking-tight">${displayName}</h3>
+            <h3 class="text-[17px] font-semibold text-[var(--text-primary)] tracking-tight">${escapeHtml(displayName)}</h3>
             <p class="text-[13px] text-[var(--text-secondary)] mt-0.5">${models.length} 个模型</p>
           </div>
         </div>
         <div class="w-8 h-8 rounded-full bg-[var(--bg-input)] flex items-center justify-center transition-all duration-300 hover:bg-[var(--bg-input-hover)]">
-          <svg id="icon-${groupName}" width="12" height="12" viewBox="0 0 12 12" fill="none" class="text-[var(--text-secondary)] transition-transform duration-300">
+          <svg id="icon-${escapeAttribute(groupName)}" width="12" height="12" viewBox="0 0 12 12" fill="none" class="text-[var(--text-secondary)] transition-transform duration-300">
             <path d="M2 4.5L6 8.5L10 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
       </div>
-      <div id="content-${groupName}" class="overflow-hidden transition-all duration-400 ease-out max-h-[2000px] opacity-100">
+      <div id="content-${escapeAttribute(groupName)}" class="overflow-hidden transition-all duration-400 ease-out max-h-[2000px] opacity-100">
         <div class="px-5 pb-5">
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-            ${models.map((model) => renderModelCard(model, groupName)).join("")}
+            ${models.map((model) => renderModelCard(model, groupName, rules)).join("")}
           </div>
         </div>
       </div>
@@ -148,7 +149,7 @@ export function renderError(error: string): string {
         </svg>
       </div>
       <h3 class="text-[19px] font-semibold text-[var(--text-primary)] mb-2 tracking-tight">获取模型失败</h3>
-      <p class="text-[15px] text-[var(--text-secondary)]">${error}</p>
+      <p class="text-[15px] text-[var(--text-secondary)]">${escapeHtml(error)}</p>
     </div>`;
 }
 

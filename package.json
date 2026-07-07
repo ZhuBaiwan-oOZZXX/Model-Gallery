@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "node src/api/index.ts",
-    "test": "node --test src/test/*.test.ts",
+    "test": "node --test src/test/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "engines": {
-    "node": ">=23.6.0"
+    "node": ">=24.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.13.2",

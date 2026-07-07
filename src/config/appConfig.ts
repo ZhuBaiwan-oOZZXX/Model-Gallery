@@ -1,7 +1,15 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import type { AppConfig } from "../types.ts";
+import type { AppConfig, SiteConfig } from "../types.ts";
 import { BUILTIN_GROUP_NAMES } from "./groupConfig.ts";
+import { isSafeUrl } from "../ui/escape.ts";
+
+function validateSiteUrl(site: SiteConfig, field: keyof SiteConfig): void {
+  const value = site[field];
+  if (value && !isSafeUrl(value as string)) {
+    throw new Error(`配置错误: 站点 "${site.name || "未知"}" ${field} 必须是 http:// 或 https:// 协议`);
+  }
+}
 
 const DEFAULT_SITE_CONFIG = {
   apiEndpoint: "/v1/models",
@@ -15,6 +23,9 @@ function validateConfig(config: AppConfig): void {
   }
 
   for (const site of config.sites) {
+    validateSiteUrl(site, "apiUrl");
+    validateSiteUrl(site, "externalUrl");
+    validateSiteUrl(site, "iconUrl");
     if (!site.name) {
       throw new Error("配置错误: 站点缺少 name 字段");
     }
@@ -57,9 +68,7 @@ function validateConfig(config: AppConfig): void {
 
       if (rule.position) {
         if (!["first", "last", "before"].includes(rule.position.type)) {
-          throw new Error(
-            `配置错误: customGroupRules[${i}] ("${rule.name}") position.type 必须是 "first"、"last" 或 "before"`,
-          );
+          throw new Error(`配置错误: customGroupRules[${i}] ("${rule.name}") position.type 必须是 "first"、"last" 或 "before"`);
         }
         if (rule.position.type === "before") {
           if (!rule.position.target) {
@@ -67,9 +76,7 @@ function validateConfig(config: AppConfig): void {
           }
           const builtinLower = BUILTIN_GROUP_NAMES.map((n) => n.toLowerCase());
           if (!builtinLower.includes(rule.position.target.toLowerCase())) {
-            throw new Error(
-              `配置错误: customGroupRules[${i}] ("${rule.name}") position.target "${rule.position.target}" 不是有效的内置分组名称`,
-            );
+            throw new Error(`配置错误: customGroupRules[${i}] ("${rule.name}") position.target "${rule.position.target}" 不是有效的内置分组名称`);
           }
         }
       }
@@ -77,7 +84,7 @@ function validateConfig(config: AppConfig): void {
   }
 }
 
-async function loadConfig(): Promise<AppConfig> {
+async function loadConfig(configPath = path.join(process.cwd(), "config.json")): Promise<AppConfig> {
   const configFromEnv = process.env.CONFIG_JSON;
   if (configFromEnv) {
     try {
@@ -88,14 +95,13 @@ async function loadConfig(): Promise<AppConfig> {
   }
 
   try {
-    const filePath = path.join(process.cwd(), "config.json");
-    const fileContent = await readFile(filePath, "utf-8");
+    const fileContent = await readFile(configPath, "utf-8");
     return JSON.parse(fileContent);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error("未设置 CONFIG_JSON 环境变量，且本地 config.json 不存在");
+      throw new Error(`未设置 CONFIG_JSON 环境变量，且本地配置文件不存在: ${configPath}`);
     }
-    throw new Error(`读取 config.json 失败: ${(err as Error).message}`);
+    throw new Error(`读取配置文件失败: ${(err as Error).message}`);
   }
 }
 
@@ -108,15 +114,13 @@ function normalizeConfig(config: AppConfig): AppConfig {
     iconUrl: site.iconUrl || DEFAULT_SITE_CONFIG.iconUrl,
   }));
 
-  const defaultSite = config.defaultSite && sites.find((s) => s.name === config.defaultSite)
-    ? config.defaultSite
-    : (sites[0]?.name ?? "");
+  const defaultSite = config.defaultSite || sites[0].name;
 
   return { sites, defaultSite, customGroupRules: config.customGroupRules };
 }
 
-export async function loadAppConfig(): Promise<AppConfig> {
-  const config = await loadConfig();
+export async function loadAppConfig(configPath?: string): Promise<AppConfig> {
+  const config = await loadConfig(configPath);
   validateConfig(config);
   return normalizeConfig(config);
 }

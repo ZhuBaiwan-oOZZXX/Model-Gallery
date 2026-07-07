@@ -1,16 +1,12 @@
 import { test, describe, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { applyCustomGroupRules, GROUP_RULES } from "../config/groupConfig.ts";
+import { buildGroupRules } from "../config/groupConfig.ts";
 import { renderPage } from "../ui/page.ts";
 import { renderHeader, renderSiteSelector, renderRefreshButton } from "../ui/components.ts";
+import { escapeAttribute, escapeHtml, escapeJsString, isSafeUrl, sanitizeUrl } from "../ui/escape.ts";
 import type { AppConfig, SiteConfig } from "../types.ts";
 
-const ORIGINAL_GROUP_RULES = [...GROUP_RULES];
-
-function resetGroupRules(): void {
-  GROUP_RULES.length = 0;
-  GROUP_RULES.push(...ORIGINAL_GROUP_RULES);
-}
+const DEFAULT_RULES = buildGroupRules();
 
 const SECRET_KEY = "sk-SECRET-KEY-12345-UNIQUE";
 
@@ -38,10 +34,6 @@ const TEST_CONFIG: AppConfig = {
 };
 
 describe("渲染字段验证", () => {
-  before(() => resetGroupRules());
-  after(() => resetGroupRules());
-  afterEach(() => resetGroupRules());
-
   test("site.name 渲染到 header", () => {
     const html = renderHeader(TEST_SITE, 3, 10);
     assert.ok(html.includes("测试站点"), "header 应包含站点名");
@@ -69,9 +61,11 @@ describe("渲染字段验证", () => {
 
   test("site selector 多站点时渲染切换链接", () => {
     const html = renderSiteSelector(TEST_CONFIG, "测试站点");
+    const currentSiteHref = `/?site=${encodeURIComponent("测试站点")}`;
+    const otherSiteHref = `/?site=${encodeURIComponent("其他站点")}`;
     assert.ok(html.includes("其他站点"), "应包含其他站点名");
-    assert.ok(html.includes("/?site="), "应包含站点切换链接");
-    assert.ok(!html.includes("测试站点".padStart(0)), "当前站点不应出现在下拉列表"); // 当前站点被过滤
+    assert.ok(html.includes(`href="${otherSiteHref}"`), "应包含其他站点切换链接");
+    assert.ok(!html.includes(`href="${currentSiteHref}"`), "当前站点不应出现在下拉列表");
   });
 
   test("site selector 单站点时不渲染", () => {
@@ -92,47 +86,43 @@ describe("渲染字段验证", () => {
   });
 
   test("完整页面渲染包含站点信息", () => {
-    const html = renderPage(TEST_CONFIG, TEST_SITE, ["gpt-4", "claude-3"], null);
+    const html = renderPage(TEST_CONFIG, TEST_SITE, ["gpt-4", "claude-3"], null, DEFAULT_RULES);
     assert.ok(html.includes("测试站点"), "页面应包含站点名");
     assert.ok(html.includes("https://external.example.com"), "页面应包含 externalUrl");
     assert.ok(html.includes("https://icon.example.com/logo.png"), "页面应包含 iconUrl");
   });
 
   test("完整页面渲染包含分组", () => {
-    const html = renderPage(TEST_CONFIG, TEST_SITE, ["gpt-4", "claude-3", "gemini-pro"], null);
+    const html = renderPage(TEST_CONFIG, TEST_SITE, ["gpt-4", "claude-3", "gemini-pro"], null, DEFAULT_RULES);
     assert.ok(html.includes("OpenAI"), "页面应包含 OpenAI 分组");
     assert.ok(html.includes("Claude"), "页面应包含 Claude 分组");
     assert.ok(html.includes("Gemini"), "页面应包含 Gemini 分组");
   });
 
   test("自定义分组渲染到页面", () => {
-    applyCustomGroupRules([{ name: "Safe分组", keywords: ["safe"] }]);
-    const html = renderPage(TEST_CONFIG, TEST_SITE, ["safe-model", "gpt-4"], null);
+    const customRules = buildGroupRules([{ name: "Safe分组", keywords: ["safe"] }]);
+    const html = renderPage(TEST_CONFIG, TEST_SITE, ["safe-model", "gpt-4"], null, customRules);
     assert.ok(html.includes("Safe分组"), "页面应包含自定义分组名");
-    resetGroupRules();
   });
 
   test("错误信息渲染到页面", () => {
-    const html = renderPage(TEST_CONFIG, TEST_SITE, null, "API 连接失败");
+    const html = renderPage(TEST_CONFIG, TEST_SITE, null, "API 连接失败", DEFAULT_RULES);
     assert.ok(html.includes("API 连接失败"), "页面应包含错误信息");
     assert.ok(html.includes("获取模型失败"), "页面应包含错误标题");
   });
 
   test("空模型列表渲染空状态", () => {
-    const html = renderPage(TEST_CONFIG, TEST_SITE, [], null);
+    const html = renderPage(TEST_CONFIG, TEST_SITE, [], null, DEFAULT_RULES);
     assert.ok(html.includes("暂无模型可用"), "页面应显示空状态");
   });
 
   test("模型名渲染到卡片", () => {
-    const html = renderPage(TEST_CONFIG, TEST_SITE, ["gpt-4-turbo"], null);
+    const html = renderPage(TEST_CONFIG, TEST_SITE, ["gpt-4-turbo"], null, DEFAULT_RULES);
     assert.ok(html.includes("gpt-4-turbo"), "页面应包含模型名");
   });
 });
 
 describe("安全性验证 - API Key 不泄露", () => {
-  before(() => resetGroupRules());
-  after(() => resetGroupRules());
-
   test("renderHeader 不包含 apiKey", () => {
     const html = renderHeader(TEST_SITE, 3, 10);
     assert.ok(!html.includes(SECRET_KEY), "header 不应包含 apiKey");
@@ -151,24 +141,116 @@ describe("安全性验证 - API Key 不泄露", () => {
   });
 
   test("renderPage 正常页不包含 apiKey", () => {
-    const html = renderPage(TEST_CONFIG, TEST_SITE, ["gpt-4"], null);
+    const html = renderPage(TEST_CONFIG, TEST_SITE, ["gpt-4"], null, DEFAULT_RULES);
     assert.ok(!html.includes(SECRET_KEY), "页面不应包含 apiKey");
     assert.ok(!html.includes("SECRET"), "页面不应包含密钥片段");
   });
 
   test("renderPage 错误页不包含 apiKey", () => {
-    const html = renderPage(TEST_CONFIG, TEST_SITE, null, "测试错误");
+    const html = renderPage(TEST_CONFIG, TEST_SITE, null, "测试错误", DEFAULT_RULES);
     assert.ok(!html.includes(SECRET_KEY), "错误页不应包含 apiKey");
     assert.ok(!html.includes("SECRET"), "错误页不应包含密钥片段");
   });
 
   test("renderPage 空状态页不包含 apiKey", () => {
-    const html = renderPage(TEST_CONFIG, TEST_SITE, [], null);
+    const html = renderPage(TEST_CONFIG, TEST_SITE, [], null, DEFAULT_RULES);
     assert.ok(!html.includes(SECRET_KEY), "空状态页不应包含 apiKey");
   });
 
   test("其他站点 apiKey 也不泄露", () => {
-    const html = renderPage(TEST_CONFIG, TEST_OTHER_SITE, ["gpt-4"], null);
+    const html = renderPage(TEST_CONFIG, TEST_OTHER_SITE, ["gpt-4"], null, DEFAULT_RULES);
     assert.ok(!html.includes("sk-other-key"), "不应包含其他站点 apiKey");
+  });
+});
+
+describe("安全性验证 - HTML 和属性转义", () => {
+  test("escapeHtml 转义文本节点危险字符", () => {
+    assert.equal(escapeHtml(`<script>alert("x")</script>&`), `&lt;script&gt;alert("x")&lt;/script&gt;&amp;`);
+  });
+
+  test("escapeAttribute 转义属性危险字符", () => {
+    assert.equal(escapeAttribute(`" onmouseover='alert(1)' & <x>`), `&quot; onmouseover=&#39;alert(1)&#39; &amp; &lt;x&gt;`);
+  });
+
+  test("escapeJsString 转义内联事件字符串危险字符", () => {
+    assert.equal(escapeJsString(`x');alert(1);//<script>`), `x\\x27);alert(1);//\\x3Cscript\\x3E`);
+  });
+
+  test("模型名包含 HTML 时只输出转义文本", () => {
+    const modelName = `<script>alert(1)</script>`;
+    const html = renderPage(TEST_CONFIG, TEST_SITE, [modelName], null, DEFAULT_RULES);
+    assert.ok(html.includes("&lt;script&gt;alert(1)&lt;/script&gt;"), "页面应包含转义后的模型名");
+    assert.ok(!html.includes(modelName), "页面不应包含原始模型 HTML");
+    assert.ok(!html.includes(`copyToClipboard('${modelName}')`), "内联事件不应包含原始模型名");
+  });
+
+  test("错误信息包含 HTML 时只输出转义文本", () => {
+    const error = `<img src=x onerror=alert(1)>`;
+    const html = renderPage(TEST_CONFIG, TEST_SITE, null, error, DEFAULT_RULES);
+    assert.ok(html.includes("&lt;img src=x onerror=alert(1)&gt;"), "页面应包含转义后的错误信息");
+    assert.ok(!html.includes(error), "页面不应包含原始错误 HTML");
+  });
+
+  test("站点文本与属性字段会被分别转义", () => {
+    const site: SiteConfig = {
+      ...TEST_SITE,
+      name: `<b onclick="alert(1)">evil</b>`,
+      externalUrl: `https://example.com/" onclick="alert(1)`,
+      iconUrl: `https://example.com/icon.png" onerror="alert(1)`,
+    };
+    const html = renderHeader(site, 1, 2);
+    assert.ok(html.includes('&lt;b onclick="alert(1)"&gt;evil&lt;/b&gt;'), "站点名应作为文本转义");
+    assert.ok(html.includes(`href="https://example.com/&quot; onclick=&quot;alert(1)"`), "外链应作为属性转义");
+    assert.ok(html.includes(`src="https://example.com/icon.png&quot; onerror=&quot;alert(1)"`), "图标 URL 应作为属性转义");
+    assert.ok(!html.includes(site.name), "header 不应包含原始站点名 HTML");
+  });
+
+  test("站点选择器会转义站点名称文本", () => {
+    const maliciousSite: SiteConfig = { ...TEST_OTHER_SITE, name: `<svg onload=alert(1)>` };
+    const config: AppConfig = { sites: [TEST_SITE, maliciousSite], defaultSite: TEST_SITE.name };
+    const html = renderSiteSelector(config, TEST_SITE.name);
+    assert.ok(html.includes("&lt;svg onload=alert(1)&gt;"), "站点选择器应转义站点名称");
+    assert.ok(!html.includes(maliciousSite.name), "站点选择器不应包含原始站点名称 HTML");
+  });
+
+  test("自定义分组名称和图标属性会被转义", () => {
+    const customRules = buildGroupRules([
+      {
+        name: `<img src=x onerror=alert(1)>`,
+        icon: `https://example.com/icon.png" onerror="alert(1)`,
+        keywords: ["unsafe"],
+      },
+    ]);
+    const html = renderPage(TEST_CONFIG, TEST_SITE, ["unsafe-model"], null, customRules);
+    assert.ok(html.includes("&lt;img src=x onerror=alert(1)&gt;"), "自定义分组名应作为文本转义");
+    assert.ok(html.includes(`src="https://example.com/icon.png&quot; onerror=&quot;alert(1)"`), "自定义图标应作为属性转义");
+    assert.ok(!html.includes(`<h3 class="text-[17px] font-semibold text-[var(--text-primary)] tracking-tight"><img`), "分组标题不应注入 HTML");
+  });
+
+  test("isSafeUrl 只允许 http/https 协议", () => {
+    assert.equal(isSafeUrl("https://example.com"), true);
+    assert.equal(isSafeUrl("http://example.com"), true);
+    assert.equal(isSafeUrl("javascript:alert(1)"), false);
+    assert.equal(isSafeUrl("data:text/html,<script>alert(1)</script>"), false);
+  });
+
+  test("sanitizeUrl 将危险 URL fallback 到安全值", () => {
+    assert.equal(sanitizeUrl("javascript:alert(1)"), "#");
+    assert.equal(sanitizeUrl("https://example.com"), "https://example.com");
+    assert.equal(sanitizeUrl("javascript:alert(1)", ""), "");
+  });
+
+  test("renderHeader 对 javascript: externalUrl fallback 到 #", () => {
+    const site: SiteConfig = { ...TEST_SITE, externalUrl: "javascript:alert(1)" };
+    const html = renderHeader(site, 1, 2);
+    assert.ok(html.includes('href="#"'), "危险 externalUrl 应被替换为 #");
+    assert.ok(!html.includes("javascript:"), "header 不应包含 javascript:");
+  });
+
+  test("renderHeader 对 data: iconUrl 不渲染 img 标签", () => {
+    const site: SiteConfig = { ...TEST_SITE, iconUrl: "data:image/svg+xml,<svg onload=alert(1)>" };
+    const html = renderHeader(site, 1, 2);
+    assert.ok(!html.includes("<img"), "危险 iconUrl 不应渲染 img 标签");
+    assert.ok(!html.includes("data:image/svg+xml"), "header 不应包含 data: URL");
   });
 });
