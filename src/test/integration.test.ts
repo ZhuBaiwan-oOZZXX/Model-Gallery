@@ -4,6 +4,8 @@ import http from "node:http";
 import type { Server } from "node:http";
 
 const ORIGINAL_FETCH = globalThis.fetch;
+const ORIGINAL_TEST_SERVER = process.env.TEST_SERVER;
+const ORIGINAL_CONFIG_JSON = process.env.CONFIG_JSON;
 
 const TEST_CONFIG = {
   sites: [
@@ -36,11 +38,16 @@ describe("集成测试：启动服务器后检测", () => {
     process.env.TEST_SERVER = "1";
     process.env.CONFIG_JSON = JSON.stringify(TEST_CONFIG);
 
-    globalThis.fetch = async () =>
-      new Response(JSON.stringify({ data: [{ id: "gpt-4" }, { id: "claude-3" }] }), {
+    globalThis.fetch = async (input, init) => {
+      const requestUrl = String(input);
+      const headers = init?.headers as Record<string, string>;
+      const siteB = requestUrl.startsWith("https://api.b.example.com");
+      assert.equal(headers.Authorization, siteB ? "Bearer sk-test-key-b" : "Bearer sk-test-key-a");
+      return new Response(JSON.stringify({ data: [{ id: siteB ? "gemini-pro" : "gpt-4" }] }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
+    };
 
     const module = await import("../api/index.ts");
     handleRequest = module.default;
@@ -60,8 +67,10 @@ describe("集成测试：启动服务器后检测", () => {
 
   after(async () => {
     globalThis.fetch = ORIGINAL_FETCH;
-    delete process.env.TEST_SERVER;
-    delete process.env.CONFIG_JSON;
+    if (ORIGINAL_TEST_SERVER === undefined) delete process.env.TEST_SERVER;
+    else process.env.TEST_SERVER = ORIGINAL_TEST_SERVER;
+    if (ORIGINAL_CONFIG_JSON === undefined) delete process.env.CONFIG_JSON;
+    else process.env.CONFIG_JSON = ORIGINAL_CONFIG_JSON;
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
@@ -105,14 +114,14 @@ describe("集成测试：启动服务器后检测", () => {
     const { status, text } = await fetchText(`/?site=${encodeURIComponent("测试站点B")}`);
 
     assert.equal(status, 200);
-    assert.ok(text.includes("测试站点B"));
+    assert.ok(text.includes("gemini-pro"));
     assert.ok(!text.includes("sk-test-key-b"));
   });
 
-  test("未知路径返回 200 并由 SSR 入口处理", async () => {
+  test("未知路径返回 404", async () => {
     const { status, text } = await fetchText("/unknown-path");
 
-    assert.equal(status, 200);
-    assert.ok(text.includes("Model Gallery"));
+    assert.equal(status, 404);
+    assert.ok(text.includes("页面不存在"));
   });
 });

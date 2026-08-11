@@ -1,14 +1,9 @@
 export function escapeHtml(value: unknown): string {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
 export function escapeAttribute(value: unknown): string {
-  return escapeHtml(value)
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+  return escapeHtml(value).replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 }
 
 export function escapeJsString(value: unknown): string {

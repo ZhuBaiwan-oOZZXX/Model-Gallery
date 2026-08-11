@@ -68,16 +68,25 @@ describe("渲染字段验证", () => {
     assert.ok(!html.includes(`href="${currentSiteHref}"`), "当前站点不应出现在下拉列表");
   });
 
-  test("site selector 单站点时不渲染", () => {
-    const singleConfig: AppConfig = { sites: [TEST_SITE], defaultSite: "测试站点" };
-    const html = renderSiteSelector(singleConfig, "测试站点");
-    assert.equal(html, "", "单站点时 site selector 应为空");
+  test("外链增加 noopener 防护", () => {
+    const html = renderHeader(TEST_SITE, 1, 1);
+    assert.ok(html.includes('target="_blank" rel="noopener noreferrer"'));
   });
 
-  test("refresh button 包含当前站点链接", () => {
+  test("完整页面按分组规则顺序渲染，而非按数量排序", () => {
+    const rules = buildGroupRules([
+      { name: "自定义首", keywords: ["custom"], position: { type: "first" } },
+      { name: "自定义尾", keywords: ["tail"], position: { type: "last" } },
+    ]);
+    const html = renderPage(TEST_CONFIG, TEST_SITE, ["gpt-1", "gpt-2", "custom-model", "tail-model"], null, rules);
+    assert.ok(html.indexOf("自定义首") < html.indexOf("OpenAI"));
+    assert.ok(html.indexOf("自定义尾") > html.indexOf("OpenAI"));
+  });
+
+  test("refresh button 包含当前站点精确链接", () => {
     const html = renderRefreshButton("测试站点");
     const encoded = encodeURIComponent("测试站点");
-    assert.ok(html.includes(`/\\?site=${encoded}`) || html.includes(`/?site=${encoded}`), "应包含编码后的站点链接");
+    assert.ok(html.includes(`href="/?site=${encoded}"`));
   });
 
   test("refresh button 无站点名时链接为根路径", () => {
@@ -169,7 +178,10 @@ describe("安全性验证 - HTML 和属性转义", () => {
   });
 
   test("escapeAttribute 转义属性危险字符", () => {
-    assert.equal(escapeAttribute(`" onmouseover='alert(1)' & <x>`), `&quot; onmouseover=&#39;alert(1)&#39; &amp; &lt;x&gt;`);
+    assert.equal(
+      escapeAttribute(`" onmouseover='alert(1)' & <x>`),
+      `&quot; onmouseover=&#39;alert(1)&#39; &amp; &lt;x&gt;`,
+    );
   });
 
   test("escapeJsString 转义内联事件字符串危险字符", () => {
@@ -201,7 +213,10 @@ describe("安全性验证 - HTML 和属性转义", () => {
     const html = renderHeader(site, 1, 2);
     assert.ok(html.includes('&lt;b onclick="alert(1)"&gt;evil&lt;/b&gt;'), "站点名应作为文本转义");
     assert.ok(html.includes(`href="https://example.com/&quot; onclick=&quot;alert(1)"`), "外链应作为属性转义");
-    assert.ok(html.includes(`src="https://example.com/icon.png&quot; onerror=&quot;alert(1)"`), "图标 URL 应作为属性转义");
+    assert.ok(
+      html.includes(`src="https://example.com/icon.png&quot; onerror=&quot;alert(1)"`),
+      "图标 URL 应作为属性转义",
+    );
     assert.ok(!html.includes(site.name), "header 不应包含原始站点名 HTML");
   });
 
@@ -223,8 +238,14 @@ describe("安全性验证 - HTML 和属性转义", () => {
     ]);
     const html = renderPage(TEST_CONFIG, TEST_SITE, ["unsafe-model"], null, customRules);
     assert.ok(html.includes("&lt;img src=x onerror=alert(1)&gt;"), "自定义分组名应作为文本转义");
-    assert.ok(html.includes(`src="https://example.com/icon.png&quot; onerror=&quot;alert(1)"`), "自定义图标应作为属性转义");
-    assert.ok(!html.includes(`<h3 class="text-[17px] font-semibold text-[var(--text-primary)] tracking-tight"><img`), "分组标题不应注入 HTML");
+    assert.ok(
+      html.includes(`src="https://example.com/icon.png&quot; onerror=&quot;alert(1)"`),
+      "自定义图标应作为属性转义",
+    );
+    assert.ok(
+      !html.includes(`<h3 class="text-[17px] font-semibold text-[var(--text-primary)] tracking-tight"><img`),
+      "分组标题不应注入 HTML",
+    );
   });
 
   test("isSafeUrl 只允许 http/https 协议", () => {

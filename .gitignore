@@ -1,5 +1,7 @@
 # 编辑器配置
 .trae/
+.zcode/
+AGENTS.md
 
 # 配置文件与密钥
 configs/
@@ -10,6 +12,6 @@ config.json
 
 # 依赖
 node_modules/
+package-lock.json
 
-.vercel
 .env*

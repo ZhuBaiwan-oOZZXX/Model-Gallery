@@ -108,17 +108,25 @@ describe("模型服务 fetchModels", () => {
   });
 
   test("超时中止请求并返回超时错误且不泄露 API Key", async () => {
+    let aborted = false;
     mockFetch(
       (async (_input, init) =>
         new Promise<Response>((_resolve, reject) => {
-          init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+          init?.signal?.addEventListener(
+            "abort",
+            () => {
+              aborted = true;
+              reject(new DOMException("Aborted", "AbortError"));
+            },
+            { once: true },
+          );
         })) as FetchMock,
     );
 
-    const result = await fetchModels(TEST_SITE);
+    const result = await fetchModels(TEST_SITE, 20);
 
-    assert.equal(result.models, null);
-    assert.equal(result.error, "获取模型超时，请稍后重试");
+    assert.equal(aborted, true);
+    assert.deepEqual(result, { models: null, error: "获取模型超时，请稍后重试" });
     assert.ok(!result.error.includes(TEST_SITE.apiKey));
   });
 });

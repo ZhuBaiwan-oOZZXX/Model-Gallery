@@ -1,5 +1,5 @@
 import type { AppConfig, GroupRule, SiteConfig } from "../types.ts";
-import { groupModels } from "../services/models.ts";
+import { groupModels, orderedGroups } from "../config/groupConfig.ts";
 import {
   renderEmpty,
   renderError,
@@ -21,19 +21,15 @@ export function renderPage(
   rules: GroupRule[],
 ): string {
   const groupedModels = models ? groupModels(models, rules) : null;
-  const groupNames = groupedModels
-    ? Object.keys(groupedModels).sort((a, b) => groupedModels[b].length - groupedModels[a].length)
-    : [];
+  const groups = groupedModels ? orderedGroups(groupedModels, rules) : [];
 
   let content: string;
-  if (error) {
-    content = renderError(error);
-  } else if (groupedModels && groupNames.length > 0) {
-    content = groupNames.map((name, index) => renderGroupSection(name, groupedModels[name], rules, index))
+  if (error) content = renderError(error);
+  else if (groups.length > 0)
+    content = groups
+      .map(({ rule, models: groupModels }, index) => renderGroupSection(rule, groupModels, index))
       .join("");
-  } else {
-    content = renderEmpty();
-  }
+  else content = renderEmpty();
 
   return `
 <!DOCTYPE html>
@@ -54,7 +50,7 @@ export function renderPage(
   ${renderRefreshButton(site.name)}
   <div class="min-h-screen pt-16 pb-12 px-4 sm:px-6 lg:px-8">
     <div class="max-w-[1200px] mx-auto">
-      ${renderHeader(site, groupNames.length, models?.length || 0)}
+      ${renderHeader(site, groups.length, models?.length || 0)}
       ${renderNotification()}
       ${content}
       <footer class="mt-20 pb-8 text-center">

@@ -1,0 +1,2301 @@
+diff --git a/.gitignore b/.gitignore
+index cfe7701..992f463 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,5 +1,7 @@
+ # 编辑器配置
+ .trae/
++.zcode/
++AGENTS.md
+ 
+ # 配置文件与密钥
+ configs/
+@@ -10,6 +12,6 @@ config.json
+ 
+ # 依赖
+ node_modules/
++package-lock.json
+ 
+-.vercel
+ .env*
+diff --git a/README.md b/README.md
+index 4a722ba..37fc1d6 100644
+--- a/README.md
++++ b/README.md
+@@ -121,18 +121,20 @@
+ 
+ > 以下是自定义分组的规则，如果需要新的分组可以提交 Issue 或 PR 说明。
+ 
+-| **字段名** | **类型** | **说明**                                                                                                                                                                                       | **默认值**                             | **是否必选** |
+-| ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ------------ |
+-| `name`     | String   | 分组名称，不能与内置分组或其他自定义分组重复                                                                                                                                                   | -                                      | 必选         |
+-| `keywords` | String[] | 关键词数组，模型名称包含任意一个关键词时，则匹配到该分组                                                                                                                                       | -                                      | 必选         |
+-| `icon`     | URL      | 分组图标                                                                                                                                                                                       | LobeHub Icons 默认图标                 | 可选         |
+-| `position` | Object   | 分组的插入位置。<br>`type`：可选 `first`（最前）、`last`（最后）、`before`（插入到某分组之前）<br>当 `type` 为 `before` 时需指定 `target` 为内置分组名称（大小写不敏感，不支持指定自定义分组） | 若不指定，默认为 `{ "type": "first" }` | 可选         |
++| **字段名** | **类型** | **说明**                                                                  | **默认值**             | **是否必选** |
++| ---------- | -------- | ------------------------------------------------------------------------- | ---------------------- | ------------ |
++| `name`     | String   | 分组显示名称                                                              | -                      | 必选         |
++| `keywords` | String[] | 关键词数组，模型名称包含任意一个关键词时，则匹配到该分组                  | -                      | 必选         |
++| `icon`     | URL      | 分组图标                                                                  | LobeHub Icons 默认图标 | 可选         |
++| `position` | Object   | 分组插入位置：`first`（最前）、`last`（最后）、`before`（插入到目标之前） | `{ "type": "first" }`  | 可选         |
++
++> **重名规则**：自定义规则可以覆盖同名内置组，也可以覆盖此前定义的同名自定义规则；同名规则始终以后定义的规则为准。
++>
++> **位置顺序**：多个 `first`、多个 `last`，以及指向同一目标的多个 `before`，均按配置顺序排列；`before.target` 可以指向内置组或自定义组。
+ 
+ <details>
+ <summary>多个自定义分组的最终顺序</summary>
+ 
+-> **多个自定义分组的最终顺序**：相同 `type` 的自定义分组，按配置文件中的顺序排列（先配置的在前），例如：
+->
+ > - `[{A, first}, {B, first}]` → 结果为 `[A, B, ...原有分组]`
+ > - `[{A, last}, {B, last}]` → 结果为 `[...原有分组, A, B]`
+ > - `[{A, before: DeepSeek}, {B, before: DeepSeek}]` → 结果为 `[A, B, DeepSeek, ...]`
+diff --git a/config.example.json b/config.example.json
+index 96dd2f7..b08f3c4 100644
+--- a/config.example.json
++++ b/config.example.json
+@@ -31,19 +31,35 @@
+       "name": "翻译",
+       "icon": "https://example.com/other.webp",
+       "keywords": ["翻译"],
+-      "position": { "type": "first" }
++      "position": {
++        "type": "first"
++      }
+     },
+     {
+       "name": "官转",
+       "icon": "https://example.com/other.webp",
+       "keywords": ["官转"],
+-      "position": { "type": "before", "target": "DeepSeek" }
++      "position": {
++        "type": "before",
++        "target": "DeepSeek"
++      }
++    },
++    {
++      "name": "Nvidia",
++      "icon": "https://example.com/nvidia.webp",
++      "keywords": ["nvidia", "英伟达"],
++      "position": {
++        "type": "before",
++        "target": "DeepSeek"
++      }
+     },
+     {
+       "name": "其他自定义",
+       "icon": "https://example.com/other.webp",
+       "keywords": ["other"],
+-      "position": { "type": "last" }
++      "position": {
++        "type": "last"
++      }
+     }
+   ]
+ }
+diff --git a/package.json b/package.json
+index ba5c7f3..9d7471a 100644
+--- a/package.json
++++ b/package.json
+@@ -5,14 +5,17 @@
+   "type": "module",
+   "scripts": {
+     "dev": "node src/api/index.ts",
+-    "test": "node --test src/test/**/*.test.ts",
+-    "typecheck": "tsc --noEmit"
++    "test": "node --test \"src/test/**/*.test.ts\"",
++    "typecheck": "tsc --noEmit",
++    "format": "prettier --write --ignore-path .prettierignore \"src/**/*.ts\" \"*.json\" \"config.json\"",
++    "format:check": "prettier --check --ignore-path .prettierignore \"src/**/*.ts\" \"*.json\" \"config.json\""
+   },
+   "engines": {
+     "node": ">=24.0.0"
+   },
+   "devDependencies": {
+     "@types/node": "^24.13.2",
++    "prettier": "^3.9.6",
+     "typescript": "^6.0.3"
+   }
+ }
+diff --git a/src/api/index.ts b/src/api/index.ts
+index aa39130..76bae5a 100644
+--- a/src/api/index.ts
++++ b/src/api/index.ts
+@@ -1,72 +1,106 @@
+ import http from "node:http";
+ import { readFile } from "node:fs/promises";
+-import path from "node:path";
++import { fileURLToPath } from "node:url";
+ import { loadAppConfig } from "../config/appConfig.ts";
+ import { buildGroupRules } from "../config/groupConfig.ts";
+-import type { AppConfig, GroupRule } from "../types.ts";
++import type { AppConfig, GroupRule, SiteConfig } from "../types.ts";
+ import { fetchModels } from "../services/models.ts";
+ import { renderPage } from "../ui/page.ts";
+ import { escapeHtml } from "../ui/escape.ts";
+ 
+-let appConfigPromise: Promise<AppConfig> | null = null;
+-let groupRules: GroupRule[] | null = null;
++interface RuntimeSnapshot {
++  config: AppConfig;
++  rules: GroupRule[];
++}
++
++let runtimePromise: Promise<RuntimeSnapshot> | null = null;
++const faviconPath = fileURLToPath(new URL("../assets/favicon.svg", import.meta.url));
+ 
+-function getAppConfig(): Promise<AppConfig> {
+-  if (!appConfigPromise) {
+-    appConfigPromise = loadAppConfig();
++function getRuntime(): Promise<RuntimeSnapshot> {
++  if (!runtimePromise) {
++    runtimePromise = loadAppConfig()
++      .then((config) => ({ config, rules: buildGroupRules(config.customGroupRules) }))
++      .catch((error) => {
++        runtimePromise = null;
++        throw error;
++      });
+   }
+-  return appConfigPromise;
++  return runtimePromise;
++}
++
++function writeHtml(res: http.ServerResponse, statusCode: number, html: string): void {
++  res.setHeader("Content-Type", "text/html; charset=utf-8");
++  res.statusCode = statusCode;
++  res.end(html);
++}
++
++function writeError(res: http.ServerResponse, statusCode: number, title: string, message: string): void {
++  writeHtml(
++    res,
++    statusCode,
++    `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>${escapeHtml(title)}</title></head><body><h2>${escapeHtml(title)}</h2><p>${escapeHtml(message)}</p></body></html>`,
++  );
++}
++
++async function serveFavicon(res: http.ServerResponse, headOnly: boolean): Promise<void> {
++  const file = await readFile(faviconPath);
++  res.setHeader("Content-Type", "image/svg+xml");
++  res.statusCode = 200;
++  if (headOnly) res.end();
++  else res.end(file);
+ }
+ 
+ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
++  if (req.method !== "GET" && req.method !== "HEAD") {
++    res.setHeader("Allow", "GET, HEAD");
++    writeError(res, 405, "不支持的请求方法", "只支持 GET 和 HEAD 请求");
++    return;
++  }
++
+   try {
+-    const host = req.headers.host || "localhost";
+-    const url = new URL(req.url ?? "/", `http://${host}`);
++    const url = new URL(req.url ?? "/", "http://localhost");
++    const headOnly = req.method === "HEAD";
+ 
+     if (url.pathname === "/favicon.svg") {
+-      const filePath = path.join(process.cwd(), "src/assets/favicon.svg");
+-      const file = await readFile(filePath);
+-      res.setHeader("Content-Type", "image/svg+xml");
+-      res.statusCode = 200;
+-      res.end(file);
++      await serveFavicon(res, headOnly);
+       return;
+     }
+-
+-    const appConfig = await getAppConfig();
+-    if (!groupRules) {
+-      groupRules = buildGroupRules(appConfig.customGroupRules);
++    if (url.pathname !== "/") {
++      writeError(res, 404, "页面不存在", "请求的页面不存在");
++      return;
+     }
+ 
+-    const siteName = url.searchParams.get("site") || appConfig.defaultSite;
+-    const site = appConfig.sites.find((s) => s.name === siteName) || appConfig.sites[0];
+-
++    const runtime = await getRuntime();
++    const requestedSite = url.searchParams.get("site");
++    const siteName = requestedSite ?? runtime.config.defaultSite;
++    const site = runtime.config.sites.find((candidate) => candidate.name.toLowerCase() === siteName.toLowerCase());
+     if (!site) {
+-      res.statusCode = 500;
+-      res.end("没有可用的站点配置");
++      writeError(res, 404, "站点不存在", "请求的站点不存在");
+       return;
+     }
+ 
+-    const { models, error } = await fetchModels(site);
+-    const html = renderPage(appConfig, site, models, error, groupRules);
+-    res.setHeader("Content-Type", "text/html; charset=utf-8");
+-    res.statusCode = 200;
+-    res.end(html);
+-  } catch (err) {
+-    const message = (err as Error).message || "服务器内部错误";
+-    if (!res.writableEnded) {
++    const result = await fetchModels(site);
++    const statusCode = result.error ? (result.error.includes("超时") ? 504 : 502) : 200;
++    const html = renderPage(runtime.config, site, result.models, result.error, runtime.rules);
++    if (headOnly) {
+       res.setHeader("Content-Type", "text/html; charset=utf-8");
+-      res.statusCode = 500;
+-      res.end(`<!DOCTYPE html><html><body><h2>配置错误</h2><pre>${escapeHtml(message)}</pre></body></html>`);
++      res.statusCode = statusCode;
++      res.end();
++    } else {
++      writeHtml(res, statusCode, html);
+     }
++  } catch (error) {
++    console.error("请求处理失败:", error);
++    if (!res.writableEnded) writeError(res, 500, "服务器错误", "服务器暂时无法处理请求");
+   }
+ }
+ 
+ export default handleRequest;
+ 
+ if (!process.env.VERCEL && !process.env.TEST_SERVER) {
+-  const PORT = Number(process.env.PORT) || 3000;
+-  http.createServer(handleRequest).listen(PORT, () => {
++  const port = Number(process.env.PORT) || 3000;
++  http.createServer(handleRequest).listen(port, () => {
+     console.log(`\n  ▲ Model Gallery 开发服务器已启动`);
+-    console.log(`  ➜  本地访问: http://localhost:${PORT}\n`);
++    console.log(`  ➜  本地访问: http://localhost:${port}\n`);
+   });
+ }
+diff --git a/src/config/appConfig.ts b/src/config/appConfig.ts
+index 6c387a2..13fd71e 100644
+--- a/src/config/appConfig.ts
++++ b/src/config/appConfig.ts
+@@ -1,126 +1,184 @@
+ import { readFile } from "node:fs/promises";
+ import path from "node:path";
+-import type { AppConfig, SiteConfig } from "../types.ts";
++import type { AppConfig, CustomGroupRule, GroupPosition, SiteConfig } from "../types.ts";
+ import { BUILTIN_GROUP_NAMES } from "./groupConfig.ts";
+ import { isSafeUrl } from "../ui/escape.ts";
+ 
+-function validateSiteUrl(site: SiteConfig, field: keyof SiteConfig): void {
+-  const value = site[field];
+-  if (value && !isSafeUrl(value as string)) {
+-    throw new Error(`配置错误: 站点 "${site.name || "未知"}" ${field} 必须是 http:// 或 https:// 协议`);
+-  }
+-}
+-
+ const DEFAULT_SITE_CONFIG = {
+   apiEndpoint: "/v1/models",
+   externalUrl: "https://github.com/ZhuBaiwan-oOZZXX/Model-Gallery",
+   iconUrl: "https://docs.newapi.pro/assets/logo.png",
+-};
++} as const;
+ 
+-function validateConfig(config: AppConfig): void {
+-  if (!config.sites || config.sites.length === 0) {
+-    throw new Error("配置错误: sites 为空，请检查 CONFIG_JSON 环境变量");
++const BUILTIN_GROUP_NAME_SET = new Set(BUILTIN_GROUP_NAMES.map((name) => name.toLowerCase()));
++const MAX_ENDPOINT_LENGTH = 200;
++const MAX_NAME_LENGTH = 120;
++const MAX_KEYWORD_LENGTH = 80;
++
++function isRecord(value: unknown): value is Record<string, unknown> {
++  return typeof value === "object" && value !== null && !Array.isArray(value);
++}
++
++function parseString(value: unknown, label: string, required = true): string | undefined {
++  if (value === undefined && !required) return undefined;
++  if (typeof value !== "string" || value.trim() === "") {
++    throw new Error(`配置错误: ${label} 必须是非空字符串`);
++  }
++  const result = value.trim();
++  if (result.length > MAX_NAME_LENGTH && (label.endsWith("name") || label.includes("站点"))) {
++    throw new Error(`配置错误: ${label} 超过长度限制`);
+   }
++  return result;
++}
+ 
+-  for (const site of config.sites) {
+-    validateSiteUrl(site, "apiUrl");
+-    validateSiteUrl(site, "externalUrl");
+-    validateSiteUrl(site, "iconUrl");
+-    if (!site.name) {
+-      throw new Error("配置错误: 站点缺少 name 字段");
+-    }
+-    if (!site.apiUrl) {
+-      throw new Error(`配置错误: 站点 "${site.name}" 缺少 apiUrl 字段`);
+-    }
+-    if (!site.apiKey) {
+-      throw new Error(`配置错误: 站点 "${site.name}" 缺少 apiKey 字段`);
+-    }
++function parseUrl(value: unknown, label: string): string {
++  const url = parseString(value, label)!;
++  if (!isSafeUrl(url)) {
++    throw new Error(`配置错误: ${label} 必须是 http:// 或 https:// 协议`);
+   }
++  return url;
++}
+ 
+-  if (config.defaultSite) {
+-    if (!config.sites.some((s) => s.name === config.defaultSite)) {
+-      throw new Error(`配置错误: defaultSite "${config.defaultSite}" 不在 sites 列表中`);
++function parseEndpoint(value: unknown, label: string): string {
++  const endpoint = (parseString(value, label, false) || DEFAULT_SITE_CONFIG.apiEndpoint).trim();
++  if (endpoint.length > MAX_ENDPOINT_LENGTH || !endpoint.startsWith("/") || endpoint.startsWith("//")) {
++    throw new Error(`配置错误: ${label} 必须是有效的相对路径`);
++  }
++  try {
++    const parsed = new URL(endpoint, "https://model-gallery.invalid");
++    if (parsed.origin !== "https://model-gallery.invalid" || parsed.search || parsed.hash) {
++      throw new Error();
+     }
++  } catch {
++    throw new Error(`配置错误: ${label} 必须是有效的相对路径`);
+   }
++  return endpoint.replace(/\/+/g, "/");
++}
+ 
+-  if (config.customGroupRules) {
+-    if (!Array.isArray(config.customGroupRules)) {
+-      throw new Error("配置错误: customGroupRules 必须是数组");
+-    }
++function parseSite(raw: unknown, index: number): SiteConfig {
++  if (!isRecord(raw)) throw new Error(`配置错误: sites[${index}] 必须是对象`);
++  ensureKnownKeys(raw, ["name", "apiUrl", "apiKey", "apiEndpoint", "externalUrl", "iconUrl"], `sites[${index}]`);
++  const name = parseString(raw.name, `sites[${index}].name`)!;
++  const label = `站点 "${name}"`;
++  return {
++    name,
++    apiUrl: parseUrl(raw.apiUrl, `${label} apiUrl`),
++    apiKey: parseString(raw.apiKey, `${label} apiKey`)!,
++    apiEndpoint: parseEndpoint(raw.apiEndpoint, `${label} apiEndpoint`),
++    externalUrl:
++      raw.externalUrl === undefined
++        ? DEFAULT_SITE_CONFIG.externalUrl
++        : parseUrl(raw.externalUrl, `${label} externalUrl`),
++    iconUrl: raw.iconUrl === undefined ? DEFAULT_SITE_CONFIG.iconUrl : parseUrl(raw.iconUrl, `${label} iconUrl`),
++  };
++}
++
++function ensureKnownKeys(raw: Record<string, unknown>, allowed: readonly string[], label: string): void {
++  const allowedKeys = new Set(allowed);
++  const unknownKey = Object.keys(raw).find((key) => !allowedKeys.has(key));
++  if (unknownKey) throw new Error(`配置错误: ${label} 包含未知字段 "${unknownKey}"`);
++}
+ 
+-    const seenNames = new Set<string>(BUILTIN_GROUP_NAMES);
+-
+-    for (let i = 0; i < config.customGroupRules.length; i++) {
+-      const rule = config.customGroupRules[i];
+-
+-      if (!rule.name) {
+-        throw new Error(`配置错误: customGroupRules[${i}] 缺少 name 字段`);
+-      }
+-
+-      if (seenNames.has(rule.name)) {
+-        throw new Error(`配置错误: customGroupRules[${i}] ("${rule.name}") name 与内置分组或其他自定义分组重复`);
+-      }
+-      seenNames.add(rule.name);
+-
+-      if (!rule.keywords || !Array.isArray(rule.keywords) || rule.keywords.length === 0) {
+-        throw new Error(`配置错误: customGroupRules[${i}] ("${rule.name}") 缺少 keywords 字段或 keywords 为空`);
+-      }
+-
+-      if (rule.position) {
+-        if (!["first", "last", "before"].includes(rule.position.type)) {
+-          throw new Error(`配置错误: customGroupRules[${i}] ("${rule.name}") position.type 必须是 "first"、"last" 或 "before"`);
+-        }
+-        if (rule.position.type === "before") {
+-          if (!rule.position.target) {
+-            throw new Error(`配置错误: customGroupRules[${i}] ("${rule.name}") position.type 为 "before" 时必须指定 target`);
+-          }
+-          const builtinLower = BUILTIN_GROUP_NAMES.map((n) => n.toLowerCase());
+-          if (!builtinLower.includes(rule.position.target.toLowerCase())) {
+-            throw new Error(`配置错误: customGroupRules[${i}] ("${rule.name}") position.target "${rule.position.target}" 不是有效的内置分组名称`);
+-          }
+-        }
+-      }
++function parsePosition(raw: unknown, label: string): GroupPosition | undefined {
++  if (raw === undefined) return undefined;
++  if (!isRecord(raw)) {
++    throw new Error(`配置错误: ${label}.position 必须是对象`);
++  }
++  ensureKnownKeys(raw, ["type", "target"], `${label}.position`);
++  if (!["first", "last", "before"].includes(raw.type as string)) {
++    throw new Error(`配置错误: ${label}.position.type 必须是 "first"、"last" 或 "before"`);
++  }
++  if (raw.type === "before") {
++    const target = parseString(raw.target, `${label}.position.target`)!;
++    return { type: "before", target };
++  }
++  if (raw.target !== undefined) {
++    throw new Error(`配置错误: ${label}.position.target 仅可用于 before`);
++  }
++  return { type: raw.type as GroupPosition["type"] };
++}
++
++function parseCustomGroupRule(raw: unknown, index: number): CustomGroupRule {
++  if (!isRecord(raw)) throw new Error(`配置错误: customGroupRules[${index}] 必须是对象`);
++  const label = `customGroupRules[${index}]`;
++  ensureKnownKeys(raw, ["name", "icon", "keywords", "position"], label);
++  const name = parseString(raw.name, `${label}.name`)!;
++  if (
++    !Array.isArray(raw.keywords) ||
++    raw.keywords.length === 0 ||
++    raw.keywords.some(
++      (keyword) => typeof keyword !== "string" || keyword.trim() === "" || keyword.length > MAX_KEYWORD_LENGTH,
++    )
++  ) {
++    throw new Error(`配置错误: ${label} ("${name}") keywords 必须是非空字符串数组`);
++  }
++  return {
++    name,
++    keywords: raw.keywords.map((keyword) => keyword.trim()),
++    ...(raw.icon === undefined ? {} : { icon: parseUrl(raw.icon, `${label} ("${name}") icon`) }),
++    ...(raw.position === undefined ? {} : { position: parsePosition(raw.position, label) }),
++  };
++}
++
++function parseConfig(raw: unknown): AppConfig {
++  if (!isRecord(raw)) throw new Error("配置错误: 根配置必须是 JSON 对象");
++  if (!Array.isArray(raw.sites) || raw.sites.length === 0)
++    throw new Error("配置错误: sites 为空，请检查 CONFIG_JSON 环境变量");
++
++  const sites = raw.sites.map(parseSite);
++  const siteNames = new Set<string>();
++  for (const site of sites) {
++    const key = site.name.toLowerCase();
++    if (siteNames.has(key)) throw new Error(`配置错误: 站点名称 "${site.name}" 重复`);
++    siteNames.add(key);
++  }
++
++  const defaultSite = raw.defaultSite === undefined ? sites[0].name : parseString(raw.defaultSite, "defaultSite")!;
++  const defaultSiteConfig = sites.find((site) => site.name.toLowerCase() === defaultSite.toLowerCase());
++  if (!defaultSiteConfig) throw new Error(`配置错误: defaultSite "${defaultSite}" 不在 sites 列表中`);
++
++  const customGroupRules =
++    raw.customGroupRules === undefined
++      ? undefined
++      : (() => {
++          if (!Array.isArray(raw.customGroupRules)) throw new Error("配置错误: customGroupRules 必须是数组");
++          return raw.customGroupRules.map((rule, index) => parseCustomGroupRule(rule, index));
++        })();
++
++  const availableGroupNames = new Set([
++    ...BUILTIN_GROUP_NAME_SET,
++    ...(customGroupRules ?? []).map((rule) => rule.name.toLowerCase()),
++  ]);
++  for (const rule of customGroupRules ?? []) {
++    if (rule.position?.type === "before" && !availableGroupNames.has(rule.position.target!.toLowerCase())) {
++      throw new Error(
++        `配置错误: customGroupRules ("${rule.name}") position.target "${rule.position.target}" 不是有效的分组名称`,
++      );
+     }
+   }
++
++  return { sites, defaultSite: defaultSiteConfig.name, customGroupRules };
+ }
+ 
+-async function loadConfig(configPath = path.join(process.cwd(), "config.json")): Promise<AppConfig> {
+-  const configFromEnv = process.env.CONFIG_JSON;
+-  if (configFromEnv) {
++async function readConfig(configPath: string): Promise<unknown> {
++  const raw = process.env.CONFIG_JSON;
++  if (raw !== undefined) {
+     try {
+-      return JSON.parse(configFromEnv);
++      return JSON.parse(raw);
+     } catch {
+       throw new Error("CONFIG_JSON 环境变量解析失败，请检查 JSON 格式");
+     }
+   }
+-
+   try {
+-    const fileContent = await readFile(configPath, "utf-8");
+-    return JSON.parse(fileContent);
+-  } catch (err) {
+-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
++    return JSON.parse(await readFile(configPath, "utf8"));
++  } catch (error) {
++    if ((error as NodeJS.ErrnoException).code === "ENOENT")
+       throw new Error(`未设置 CONFIG_JSON 环境变量，且本地配置文件不存在: ${configPath}`);
+-    }
+-    throw new Error(`读取配置文件失败: ${(err as Error).message}`);
++    if (error instanceof SyntaxError) throw new Error("读取配置文件失败: JSON 格式无效");
++    throw new Error(`读取配置文件失败: ${(error as Error).message}`);
+   }
+ }
+ 
+-function normalizeConfig(config: AppConfig): AppConfig {
+-  const sites = config.sites.map((site) => ({
+-    ...DEFAULT_SITE_CONFIG,
+-    ...site,
+-    apiEndpoint: site.apiEndpoint || DEFAULT_SITE_CONFIG.apiEndpoint,
+-    externalUrl: site.externalUrl || DEFAULT_SITE_CONFIG.externalUrl,
+-    iconUrl: site.iconUrl || DEFAULT_SITE_CONFIG.iconUrl,
+-  }));
+-
+-  const defaultSite = config.defaultSite || sites[0].name;
+-
+-  return { sites, defaultSite, customGroupRules: config.customGroupRules };
+-}
+-
+-export async function loadAppConfig(configPath?: string): Promise<AppConfig> {
+-  const config = await loadConfig(configPath);
+-  validateConfig(config);
+-  return normalizeConfig(config);
++export async function loadAppConfig(configPath = path.join(process.cwd(), "config.json")): Promise<AppConfig> {
++  return parseConfig(await readConfig(configPath));
+ }
+diff --git a/src/config/groupConfig.ts b/src/config/groupConfig.ts
+index 5be34ef..6b65c9c 100644
+--- a/src/config/groupConfig.ts
++++ b/src/config/groupConfig.ts
+@@ -139,96 +139,170 @@ export const BUILTIN_GROUP_RULES: readonly GroupRule[] = [
+     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/sensenova-color.webp",
+     keywords: ["商汤", "sensenova"],
+   },
+-  {
+-    name: "Agnes",
+-    icon: "https://app.agnes-ai.com/images/home/logo1.svg",
+-    keywords: ["agnes"],
+-  },
++  { name: "Agnes", icon: "https://app.agnes-ai.com/images/home/logo1.svg", keywords: ["agnes"] },
+   { name: "default", icon: DEFAULT_ICON },
+ ];
+ 
+-export const BUILTIN_GROUP_NAMES = BUILTIN_GROUP_RULES.map((r) => r.name);
++export const BUILTIN_GROUP_NAMES = BUILTIN_GROUP_RULES.map((rule) => rule.name);
+ 
+-export function buildGroupRules(customRules?: CustomGroupRule[]): GroupRule[] {
+-  const rules = [...BUILTIN_GROUP_RULES];
++type RulePosition = "first" | "last" | "before" | "base";
++interface RuleNode {
++  key: string;
++  rule: GroupRule;
++  position: RulePosition;
++  target?: string;
++  configOrder: number;
++  baseOrder: number;
++}
+ 
+-  if (!customRules || customRules.length === 0) {
+-    return rules;
+-  }
++function keyOf(name: string): string {
++  return name.toLowerCase();
++}
+ 
+-  const firstRules: GroupRule[] = [];
+-  const beforeRules: Array<{ rule: GroupRule; target: string }> = [];
+-  const lastRules: GroupRule[] = [];
++function addEdge(edges: Map<string, Set<string>>, from: string, to: string): void {
++  if (from === to) throw new Error(`分组位置形成循环: ${from}`);
++  edges.get(from)!.add(to);
++}
+ 
+-  for (const custom of customRules) {
+-    const rule: GroupRule = {
+-      name: custom.name,
+-      icon: custom.icon || DEFAULT_ICON,
+-      keywords: custom.keywords,
+-    };
++function createEffectiveNodes(customRules: CustomGroupRule[]): {
++  nodes: Map<string, RuleNode>;
++  customNodes: RuleNode[];
++} {
++  const customByKey = new Map<string, { rule: CustomGroupRule; order: number }>();
++  customRules.forEach((rule, order) => {
++    const key = keyOf(rule.name);
++    customByKey.delete(key);
++    customByKey.set(key, { rule, order });
++  });
+ 
+-    const positionType = custom.position?.type || "first";
++  const nodes = new Map<string, RuleNode>();
++  BUILTIN_GROUP_RULES.forEach((rule, baseOrder) => {
++    const key = keyOf(rule.name);
++    if (customByKey.has(key)) return;
++    nodes.set(key, { key, rule, position: "base", configOrder: -1, baseOrder });
++  });
+ 
+-    if (positionType === "first") {
+-      firstRules.push(rule);
+-    } else if (positionType === "before") {
+-      beforeRules.push({ rule, target: custom.position?.target || "" });
+-    } else {
+-      lastRules.push(rule);
+-    }
++  const customNodes: RuleNode[] = [];
++  for (const [key, { rule: custom, order }] of customByKey) {
++    const node: RuleNode = {
++      key,
++      rule: { name: custom.name, icon: custom.icon || DEFAULT_ICON, keywords: custom.keywords },
++      position: custom.position?.type ?? "first",
++      target: custom.position?.target,
++      configOrder: order,
++      baseOrder: Number.MAX_SAFE_INTEGER,
++    };
++    nodes.set(key, node);
++    customNodes.push(node);
+   }
++  return { nodes, customNodes };
++}
+ 
+-  if (firstRules.length > 0) {
+-    rules.unshift(...firstRules);
+-  }
++function stableOrder(nodes: Map<string, RuleNode>, customNodes: RuleNode[]): GroupRule[] {
++  const edges = new Map<string, Set<string>>([...nodes.keys()].map((key) => [key, new Set<string>()]));
++  const indegree = new Map<string, number>([...nodes.keys()].map((key) => [key, 0]));
++  const customByPosition = (position: RulePosition) =>
++    customNodes.filter((node) => node.position === position).sort((a, b) => a.configOrder - b.configOrder);
++  const first = customByPosition("first");
++  const before = customByPosition("before");
++  const last = customByPosition("last");
++  const base = [...nodes.values()].filter((node) => node.position === "base").sort((a, b) => a.baseOrder - b.baseOrder);
+ 
+-  for (const { rule, target } of beforeRules) {
+-    const targetLower = target.toLowerCase();
+-    const targetIndex = rules.findIndex((r) => r.name.toLowerCase() === targetLower);
+-    if (targetIndex !== -1) {
+-      rules.splice(targetIndex, 0, rule);
+-    } else {
+-      console.warn(`[警告] 无法找到目标分组 "${target}"，自定义分组 "${rule.name}" 将插入到最前位置`);
+-      rules.unshift(rule);
+-    }
++  const connect = (from: string, to: string) => {
++    if (edges.get(from)!.has(to)) return;
++    addEdge(edges, from, to);
++    indegree.set(to, indegree.get(to)! + 1);
++  };
++
++  for (let i = 1; i < base.length; i++) connect(base[i - 1].key, base[i].key);
++  for (let i = 1; i < first.length; i++) connect(first[i - 1].key, first[i].key);
++  for (let i = 1; i < last.length; i++) connect(last[i - 1].key, last[i].key);
++
++  for (const firstNode of first)
++    for (const other of nodes.values())
++      if (other.key !== firstNode.key && other.position !== "first") connect(firstNode.key, other.key);
++  for (const lastNode of last)
++    for (const other of nodes.values())
++      if (other.key !== lastNode.key && other.position !== "last") connect(other.key, lastNode.key);
++
++  const beforeByTarget = new Map<string, RuleNode[]>();
++  for (const node of before) {
++    const targetKey = keyOf(node.target!);
++    if (!nodes.has(targetKey)) throw new Error(`无效的分组插入目标: ${node.target}`);
++    const sameTarget = beforeByTarget.get(targetKey) ?? [];
++    if (sameTarget.length) connect(sameTarget[sameTarget.length - 1].key, node.key);
++    sameTarget.push(node);
++    beforeByTarget.set(targetKey, sameTarget);
++    connect(node.key, targetKey);
+   }
+ 
+-  if (lastRules.length > 0) {
+-    rules.push(...lastRules);
++  const rank = (node: RuleNode): number => {
++    if (node.position === "first") return -1_000_000 + node.configOrder;
++    if (node.position === "last") return 1_000_000 + node.configOrder;
++    if (node.position === "base") return node.baseOrder * 1000;
++    const target = nodes.get(keyOf(node.target!));
++    return target ? rank(target) - 1 : 0;
++  };
++
++  const orderedKeys: string[] = [];
++  const available = [...nodes.values()].filter((node) => indegree.get(node.key) === 0);
++  while (available.length) {
++    available.sort((a, b) => rank(a) - rank(b) || a.configOrder - b.configOrder || a.baseOrder - b.baseOrder);
++    const node = available.shift()!;
++    orderedKeys.push(node.key);
++    for (const next of edges.get(node.key)!) {
++      const nextDegree = indegree.get(next)! - 1;
++      indegree.set(next, nextDegree);
++      if (nextDegree === 0) available.push(nodes.get(next)!);
++    }
+   }
++  if (orderedKeys.length !== nodes.size) throw new Error("分组位置形成循环，请检查 before 配置");
++  return orderedKeys.map((key) => nodes.get(key)!.rule);
++}
+ 
+-  return rules;
++export function buildGroupRules(customRules?: CustomGroupRule[]): GroupRule[] {
++  if (!customRules?.length) return [...BUILTIN_GROUP_RULES];
++  const { nodes, customNodes } = createEffectiveNodes(customRules);
++  return stableOrder(nodes, customNodes);
+ }
+ 
+-export function getGroupIcon(groupName: string, rules: GroupRule[] = [...BUILTIN_GROUP_RULES]): string {
+-  const rule = rules.find((r) => r.name === groupName);
+-  return rule?.icon || DEFAULT_ICON;
++export function getGroupIcon(groupName: string, rules: readonly GroupRule[] = BUILTIN_GROUP_RULES): string {
++  return (
++    rules.find((rule) => keyOf(rule.name) === keyOf(groupName))?.icon ??
++    BUILTIN_GROUP_RULES[BUILTIN_GROUP_RULES.length - 1].icon
++  );
+ }
+ 
+-export function getGroupDisplayName(groupName: string, rules: GroupRule[] = [...BUILTIN_GROUP_RULES]): string {
+-  if (groupName === "default") return "其他";
+-  const rule = rules.find((r) => r.name === groupName);
+-  return rule?.name || groupName;
++export function getGroupDisplayName(groupName: string, rules: readonly GroupRule[] = BUILTIN_GROUP_RULES): string {
++  return keyOf(groupName) === "default"
++    ? "其他"
++    : (rules.find((rule) => keyOf(rule.name) === keyOf(groupName))?.name ?? groupName);
+ }
+ 
+-export function groupModels(models: string[], rules: GroupRule[]): Record<string, string[]> {
+-  const groups: Record<string, string[]> = {};
++export function groupModels(models: string[], rules: readonly GroupRule[]): Map<string, string[]> {
++  const groups = new Map<string, string[]>();
++  const defaultRule = rules.find((rule) => keyOf(rule.name) === "default");
++  const defaultName = defaultRule?.name ?? "default";
+   for (const model of models) {
+     const modelLower = model.toLowerCase();
+-    let groupName = "default";
+-
+-    for (const rule of rules) {
+-      if (rule.name === "default") continue;
+-
+-      if (rule.keywords?.some((kw) => modelLower.includes(kw.toLowerCase()))) {
+-        groupName = rule.name;
+-        break;
+-      }
+-    }
+-
+-    if (!groups[groupName]) groups[groupName] = [];
+-    groups[groupName].push(model);
++    const matchingRule = rules.find(
++      (rule) =>
++        keyOf(rule.name) !== "default" && rule.keywords?.some((keyword) => modelLower.includes(keyword.toLowerCase())),
++    );
++    const groupName = matchingRule?.name ?? defaultName;
++    const group = groups.get(groupName) ?? [];
++    group.push(model);
++    groups.set(groupName, group);
+   }
+-
+   return groups;
+ }
++
++export function orderedGroups(
++  groupedModels: Map<string, string[]>,
++  rules: readonly GroupRule[],
++): Array<{ rule: GroupRule; models: string[] }> {
++  return rules.flatMap((rule) => {
++    const models = groupedModels.get(rule.name);
++    return models?.length ? [{ rule, models }] : [];
++  });
++}
+diff --git a/src/services/models.ts b/src/services/models.ts
+index fcf426d..da16a67 100644
+--- a/src/services/models.ts
++++ b/src/services/models.ts
+@@ -1,67 +1,55 @@
+-import type { GroupRule, ModelResponse, SiteConfig } from "../types.ts";
++import type { ModelResponse, SiteConfig } from "../types.ts";
+ 
+ export const MODEL_FETCH_TIMEOUT_MS = 5_000;
+-
+-export function groupModels(models: string[], rules: GroupRule[]): Record<string, string[]> {
+-  const groups: Record<string, string[]> = {};
+-  for (const model of models) {
+-    const modelLower = model.toLowerCase();
+-    let groupName = "default";
+-
+-    for (const rule of rules) {
+-      if (rule.name === "default") continue;
+-
+-      if (rule.keywords?.some((kw) => modelLower.includes(kw.toLowerCase()))) {
+-        groupName = rule.name;
+-        break;
+-      }
+-    }
+-
+-    if (!groups[groupName]) groups[groupName] = [];
+-    groups[groupName].push(model);
+-  }
+-
+-  return groups;
+-}
+-
+-export async function fetchModels(site: SiteConfig, timeoutMs = MODEL_FETCH_TIMEOUT_MS): Promise<{ models: string[] | null; error: string | null }> {
++export const MAX_MODELS = 500;
++export const MAX_MODEL_ID_LENGTH = 200;
++export const MAX_RESPONSE_BYTES = 1_000_000;
++
++export async function fetchModels(
++  site: SiteConfig,
++  timeoutMs = MODEL_FETCH_TIMEOUT_MS,
++): Promise<{ models: string[] | null; error: string | null }> {
+   const controller = new AbortController();
+   const timeout = setTimeout(() => controller.abort(), timeoutMs);
++  const url = new URL(site.apiEndpoint, site.apiUrl.endsWith("/") ? site.apiUrl : `${site.apiUrl}/`).toString();
+ 
+   try {
+-    const url = `${site.apiUrl.replace(/\/$/, "")}/${site.apiEndpoint.replace(/^\//, "")}`;
+     const response = await fetch(url, {
++      redirect: "error",
+       signal: controller.signal,
+-      headers: {
+-        Authorization: `Bearer ${site.apiKey}`,
+-        "Content-Type": "application/json",
+-      },
++      headers: { Authorization: `Bearer ${site.apiKey}`, "Content-Type": "application/json" },
+     });
+ 
+-    if (!response.ok) {
+-      return {
+-        models: null,
+-        error: `获取模型失败: ${response.status} ${response.statusText}`,
+-      };
+-    }
++    if (!response.ok) return { models: null, error: `获取模型失败: ${response.status} ${response.statusText}` };
++
++    const length = Number(response.headers.get("content-length"));
++    if (Number.isFinite(length) && length > MAX_RESPONSE_BYTES) return { models: null, error: "模型接口响应过大" };
++
++    const text = await response.text();
++    if (new TextEncoder().encode(text).byteLength > MAX_RESPONSE_BYTES)
++      return { models: null, error: "模型接口响应过大" };
+ 
+     let data: ModelResponse;
+     try {
+-      data = (await response.json()) as ModelResponse;
++      data = JSON.parse(text) as ModelResponse;
+     } catch {
+       return { models: null, error: "API 响应不是有效 JSON" };
+     }
+-
+-    if (data && Array.isArray(data.data)) {
+-      const models = data.data.map((model) => (typeof model?.id === "string" ? model.id.trim() : "")).filter((id) => id.length > 0);
+-      return { models, error: null };
+-    }
+-
+-    return { models: null, error: "API 响应格式不符合预期" };
++    if (!Array.isArray(data.data)) return { models: null, error: "API 响应格式不符合预期" };
++    if (data.data.length > MAX_MODELS) return { models: null, error: "模型数量超过限制" };
++
++    const models = data.data
++      .map((model) =>
++        typeof model === "object" && model !== null && typeof (model as { id?: unknown }).id === "string"
++          ? (model as { id: string }).id.trim()
++          : "",
++      )
++      .filter((id) => id.length > 0 && id.length <= MAX_MODEL_ID_LENGTH);
++    return { models, error: null };
+   } catch (error) {
+-    if ((error as Error).name === "AbortError") {
++    if ((error as Error).name === "AbortError" || (error as Error).name === "TimeoutError")
+       return { models: null, error: "获取模型超时，请稍后重试" };
+-    }
++    if ((error as Error).message === "redirected") return { models: null, error: "模型接口禁止重定向" };
+     return { models: null, error: "模型接口请求失败，请稍后重试" };
+   } finally {
+     clearTimeout(timeout);
+diff --git a/src/test/config.test.ts b/src/test/config.test.ts
+index ae54327..3477d52 100644
+--- a/src/test/config.test.ts
++++ b/src/test/config.test.ts
+@@ -1,11 +1,10 @@
+-import { test, describe, afterEach, before, after } from "node:test";
++import { test, describe, after, before } from "node:test";
+ import assert from "node:assert/strict";
+ import { mkdtemp, rm, writeFile } from "node:fs/promises";
+ import { join } from "node:path";
+ import { tmpdir } from "node:os";
+ import { loadAppConfig } from "../config/appConfig.ts";
+-import { groupModels } from "../services/models.ts";
+-import { buildGroupRules } from "../config/groupConfig.ts";
++import { groupModels, buildGroupRules, getGroupDisplayName, getGroupIcon } from "../config/groupConfig.ts";
+ import type { CustomGroupRule } from "../types.ts";
+ 
+ const ORIGINAL_ENV = process.env.CONFIG_JSON;
+@@ -63,7 +62,7 @@ describe("配置加载", () => {
+   });
+ });
+ 
+-describe("normalizeConfig 默认值填充", () => {
++describe("配置默认值", () => {
+   before(() => delete process.env.CONFIG_JSON);
+   after(() => {
+     if (ORIGINAL_ENV) process.env.CONFIG_JSON = ORIGINAL_ENV;
+@@ -130,7 +129,7 @@ describe("normalizeConfig 默认值填充", () => {
+   });
+ });
+ 
+-describe("validateConfig 错误检测", () => {
++describe("配置错误检测", () => {
+   before(() => delete process.env.CONFIG_JSON);
+   after(() => {
+     if (ORIGINAL_ENV) process.env.CONFIG_JSON = ORIGINAL_ENV;
+@@ -144,17 +143,17 @@ describe("validateConfig 错误检测", () => {
+ 
+   test("站点缺 name 时抛错", async () => {
+     setEnv({ sites: [{ apiUrl: "https://api.com", apiKey: "sk-1" }] });
+-    await assert.rejects(() => loadAppConfig(), /缺少 name/);
++    await assert.rejects(() => loadAppConfig(), /name.*必须是非空字符串/);
+   });
+ 
+   test("站点缺 apiUrl 时抛错", async () => {
+     setEnv({ sites: [{ name: "测试", apiKey: "sk-1" }] });
+-    await assert.rejects(() => loadAppConfig(), /缺少 apiUrl/);
++    await assert.rejects(() => loadAppConfig(), /apiUrl.*必须是非空字符串/);
+   });
+ 
+   test("站点缺 apiKey 时抛错", async () => {
+     setEnv({ sites: [{ name: "测试", apiUrl: "https://api.com" }] });
+-    await assert.rejects(() => loadAppConfig(), /缺少 apiKey/);
++    await assert.rejects(() => loadAppConfig(), /apiKey.*必须是非空字符串/);
+   });
+ 
+   test("defaultSite 不在 sites 中时抛错", async () => {
+@@ -179,15 +178,16 @@ describe("validateConfig 错误检测", () => {
+     await assert.rejects(() => loadAppConfig(), /iconUrl 必须是 http:\/\/ 或 https:\/\/ 协议/);
+   });
+ 
+-  test("customGroupRules name 与内置分组重复时抛错", async () => {
++  test("customGroupRules name 与内置分组重复时允许覆盖", async () => {
+     setEnv({
+       sites: [{ name: "测试", apiUrl: "https://api.com", apiKey: "sk-1" }],
+-      customGroupRules: [{ name: "OpenAI", keywords: ["test"] }],
++      customGroupRules: [{ name: "OpenAI", keywords: ["custom"] }],
+     });
+-    await assert.rejects(() => loadAppConfig(), /重复/);
++    const config = await loadAppConfig();
++    assert.equal(config.customGroupRules?.[0].name, "OpenAI");
+   });
+ 
+-  test("customGroupRules 之间 name 重复时抛错", async () => {
++  test("customGroupRules 之间 name 重复时允许后者覆盖", async () => {
+     setEnv({
+       sites: [{ name: "测试", apiUrl: "https://api.com", apiKey: "sk-1" }],
+       customGroupRules: [
+@@ -195,7 +195,8 @@ describe("validateConfig 错误检测", () => {
+         { name: "自定义1", keywords: ["b"] },
+       ],
+     });
+-    await assert.rejects(() => loadAppConfig(), /重复/);
++    const config = await loadAppConfig();
++    assert.equal(config.customGroupRules?.length, 2);
+   });
+ 
+   test("customGroupRules 缺 name 时抛错", async () => {
+@@ -203,7 +204,7 @@ describe("validateConfig 错误检测", () => {
+       sites: [{ name: "测试", apiUrl: "https://api.com", apiKey: "sk-1" }],
+       customGroupRules: [{ keywords: ["a"] }] as CustomGroupRule[],
+     });
+-    await assert.rejects(() => loadAppConfig(), /缺少 name/);
++    await assert.rejects(() => loadAppConfig(), /name.*必须是非空字符串/);
+   });
+ 
+   test("customGroupRules keywords 为空时抛错", async () => {
+@@ -211,7 +212,7 @@ describe("validateConfig 错误检测", () => {
+       sites: [{ name: "测试", apiUrl: "https://api.com", apiKey: "sk-1" }],
+       customGroupRules: [{ name: "自定义", keywords: [] }],
+     });
+-    await assert.rejects(() => loadAppConfig(), /keywords 为空/);
++    await assert.rejects(() => loadAppConfig(), /keywords 必须是非空字符串数组/);
+   });
+ 
+   test("customGroupRules 缺 keywords 时抛错", async () => {
+@@ -219,7 +220,7 @@ describe("validateConfig 错误检测", () => {
+       sites: [{ name: "测试", apiUrl: "https://api.com", apiKey: "sk-1" }],
+       customGroupRules: [{ name: "自定义" }] as CustomGroupRule[],
+     });
+-    await assert.rejects(() => loadAppConfig(), /keywords 为空/);
++    await assert.rejects(() => loadAppConfig(), /keywords 必须是非空字符串数组/);
+   });
+ 
+   test("customGroupRules position.type 无效时抛错", async () => {
+@@ -235,15 +236,104 @@ describe("validateConfig 错误检测", () => {
+       sites: [{ name: "测试", apiUrl: "https://api.com", apiKey: "sk-1" }],
+       customGroupRules: [{ name: "自定义", keywords: ["t"], position: { type: "before" } }],
+     });
+-    await assert.rejects(() => loadAppConfig(), /必须指定 target/);
++    await assert.rejects(() => loadAppConfig(), /position\.target.*必须是非空字符串/);
++  });
++
++  test("根配置不是对象时抛出明确错误", async () => {
++    setEnv(null);
++    await assert.rejects(() => loadAppConfig(), /根配置必须是 JSON 对象/);
++  });
++
++  test("apiUrl 使用非 http/https 协议时抛错", async () => {
++    setEnv({ sites: [{ name: "测试", apiUrl: "ftp://api.com", apiKey: "sk-1" }] });
++    await assert.rejects(() => loadAppConfig(), /apiUrl 必须是 http:\/\/ 或 https:\/\/ 协议/);
+   });
+ 
+-  test("customGroupRules position.target 无效时抛错", async () => {
++  test("站点名称大小写重复时抛错", async () => {
++    setEnv({
++      sites: [
++        { name: "Test", apiUrl: "https://a.com", apiKey: "sk-a" },
++        { name: "test", apiUrl: "https://b.com", apiKey: "sk-b" },
++      ],
++    });
++    await assert.rejects(() => loadAppConfig(), /站点名称.*重复/);
++  });
++
++  test("内置组与多个同名自定义组最终由最后一个覆盖", () => {
++    const rules = buildGroupRules([
++      { name: "Nvidia", keywords: ["old"], position: { type: "last" } },
++      { name: "nvidia", keywords: ["middle"], position: { type: "before", target: "DeepSeek" } },
++      { name: "NVIDIA", keywords: ["final"], position: { type: "first" } },
++    ]);
++    const nvidiaRules = rules.filter((rule) => rule.name.toLowerCase() === "nvidia");
++    assert.equal(nvidiaRules.length, 1);
++    assert.deepEqual(nvidiaRules[0].keywords, ["final"]);
++    assert.equal(rules[0].name, "NVIDIA");
++    assert.equal(groupModels(["old-model", "middle-model", "final-model"], rules).get("default")?.length, 2);
++    assert.deepEqual(groupModels(["final-model"], rules).get("NVIDIA"), ["final-model"]);
++  });
++
++  test("多个 first、last 按配置顺序排列", () => {
++    const rules = buildGroupRules([
++      { name: "First A", keywords: ["fa"], position: { type: "first" } },
++      { name: "First B", keywords: ["fb"], position: { type: "first" } },
++      { name: "Last A", keywords: ["la"], position: { type: "last" } },
++      { name: "Last B", keywords: ["lb"], position: { type: "last" } },
++    ]);
++    const names = rules.map((rule) => rule.name);
++    assert.ok(names.indexOf("First A") < names.indexOf("First B"));
++    assert.ok(names.indexOf("Last A") < names.indexOf("Last B"));
++    assert.ok(names.indexOf("Last B") > names.indexOf("default"));
++  });
++
++  test("before 关系形成循环时拒绝构建规则", () => {
++    assert.throws(
++      () =>
++        buildGroupRules([
++          { name: "A", keywords: ["a"], position: { type: "before", target: "B" } },
++          { name: "B", keywords: ["b"], position: { type: "before", target: "A" } },
++        ]),
++      /循环/,
++    );
++  });
++
++  test("同一目标的多个 before 按配置顺序排列", () => {
++    const rules = buildGroupRules([
++      { name: "A", keywords: ["a"], position: { type: "before", target: "DeepSeek" } },
++      { name: "B", keywords: ["b"], position: { type: "before", target: "DeepSeek" } },
++      { name: "C", keywords: ["c"], position: { type: "before", target: "DeepSeek" } },
++    ]);
++    const names = rules.map((rule) => rule.name);
++    assert.ok(names.indexOf("A") < names.indexOf("B"));
++    assert.ok(names.indexOf("B") < names.indexOf("C"));
++    assert.ok(names.indexOf("C") < names.indexOf("DeepSeek"));
++  });
++
++  test("before 可以指向自定义组", () => {
++    const rules = buildGroupRules([
++      { name: "目标组", keywords: ["target"], position: { type: "last" } },
++      { name: "前置组", keywords: ["before"], position: { type: "before", target: "目标组" } },
++    ]);
++    const names = rules.map((rule) => rule.name);
++    assert.ok(names.indexOf("前置组") < names.indexOf("目标组"));
++  });
++
++  test("自定义关键词必须是非空字符串", async () => {
++    for (const keywords of [[""], ["  "], ["valid", 1]]) {
++      setEnv({
++        sites: [{ name: "测试", apiUrl: "https://api.com", apiKey: "sk-1" }],
++        customGroupRules: [{ name: "自定义", keywords }],
++      });
++      await assert.rejects(() => loadAppConfig(), /keywords 必须是非空字符串数组/);
++    }
++  });
++
++  test("自定义分组图标只允许 http/https", async () => {
+     setEnv({
+       sites: [{ name: "测试", apiUrl: "https://api.com", apiKey: "sk-1" }],
+-      customGroupRules: [{ name: "自定义", keywords: ["t"], position: { type: "before", target: "不存在的分组" } }],
++      customGroupRules: [{ name: "自定义", keywords: ["safe"], icon: "javascript:alert(1)" }],
+     });
+-    await assert.rejects(() => loadAppConfig(), /不是有效的内置分组/);
++    await assert.rejects(() => loadAppConfig(), /icon 必须是 http:\/\/ 或 https:\/\/ 协议/);
+   });
+ });
+ 
+@@ -252,57 +342,57 @@ const DEFAULT_RULES = buildGroupRules();
+ describe("分组逻辑 - 内置分组", () => {
+   test("GPT 模型归入 OpenAI", () => {
+     const result = groupModels(["gpt-4", "gpt-3.5-turbo"], DEFAULT_RULES);
+-    assert.ok(result["OpenAI"]);
+-    assert.equal(result["OpenAI"].length, 2);
++    assert.ok(result.get("OpenAI"));
++    assert.equal(result.get("OpenAI")!.length, 2);
+   });
+ 
+   test("Claude 模型归入 Claude", () => {
+     const result = groupModels(["claude-3-opus", "claude-3-sonnet"], DEFAULT_RULES);
+-    assert.ok(result["Claude"]);
+-    assert.equal(result["Claude"].length, 2);
++    assert.ok(result.get("Claude"));
++    assert.equal(result.get("Claude")!.length, 2);
+   });
+ 
+   test("Gemini 模型归入 Gemini", () => {
+     const result = groupModels(["gemini-pro", "gemini-1.5-flash"], DEFAULT_RULES);
+-    assert.ok(result["Gemini"]);
++    assert.ok(result.get("Gemini"));
+   });
+ 
+   test("DeepSeek 模型归入 DeepSeek", () => {
+     const result = groupModels(["deepseek-chat", "deepseek-coder"], DEFAULT_RULES);
+-    assert.ok(result["DeepSeek"]);
++    assert.ok(result.get("DeepSeek"));
+   });
+ 
+   test("Qwen 模型归入 Qwen", () => {
+     const result = groupModels(["qwen-max", "qwq-32b"], DEFAULT_RULES);
+-    assert.ok(result["Qwen"]);
++    assert.ok(result.get("Qwen"));
+   });
+ 
+   test("智谱模型归入 智谱", () => {
+     const result = groupModels(["glm-4", "codegeex-2"], DEFAULT_RULES);
+-    assert.ok(result["智谱"]);
++    assert.ok(result.get("智谱"));
+   });
+ 
+   test("中文关键词 - 通义归入 Qwen", () => {
+     const result = groupModels(["通义千问-max"], DEFAULT_RULES);
+-    assert.ok(result["Qwen"]);
++    assert.ok(result.get("Qwen"));
+   });
+ 
+   test("中文关键词 - 智谱归入 智谱", () => {
+     const result = groupModels(["智谱glm-4"], DEFAULT_RULES);
+-    assert.ok(result["智谱"]);
++    assert.ok(result.get("智谱"));
+   });
+ 
+   test("未匹配的模型归入 default", () => {
+     const result = groupModels(["unknown-model-xyz"], DEFAULT_RULES);
+-    assert.ok(result["default"]);
+-    assert.equal(result["default"].length, 1);
++    assert.ok(result.get("default"));
++    assert.equal(result.get("default")!.length, 1);
+   });
+ 
+   test("大小写不敏感匹配", () => {
+     const result = groupModels(["GPT-4", "Claude-3", "DEEPSEEK-chat"], DEFAULT_RULES);
+-    assert.ok(result["OpenAI"], "GPT-4 应归入 OpenAI");
+-    assert.ok(result["Claude"], "Claude-3 应归入 Claude");
+-    assert.ok(result["DeepSeek"], "DEEPSEEK-chat 应归入 DeepSeek");
++    assert.ok(result.get("OpenAI"), "GPT-4 应归入 OpenAI");
++    assert.ok(result.get("Claude"), "Claude-3 应归入 Claude");
++    assert.ok(result.get("DeepSeek"), "DEEPSEEK-chat 应归入 DeepSeek");
+   });
+ });
+ 
+@@ -319,7 +409,9 @@ describe("分组逻辑 - 自定义分组", () => {
+   });
+ 
+   test("before 位置插入到目标前", () => {
+-    const rules = buildGroupRules([{ name: "插入OpenAI前", keywords: ["before-openai"], position: { type: "before", target: "OpenAI" } }]);
++    const rules = buildGroupRules([
++      { name: "插入OpenAI前", keywords: ["before-openai"], position: { type: "before", target: "OpenAI" } },
++    ]);
+     const idx = rules.findIndex((r) => r.name === "插入OpenAI前");
+     const openaiIdx = rules.findIndex((r) => r.name === "OpenAI");
+     assert.notEqual(idx, -1);
+@@ -349,33 +441,42 @@ describe("分组逻辑 - 自定义分组", () => {
+   test("自定义分组关键词匹配模型", () => {
+     const rules = buildGroupRules([{ name: "Safe分组", keywords: ["safe"] }]);
+     const result = groupModels(["safe-model", "gpt-4", "unknown"], rules);
+-    assert.ok(result["Safe分组"], "safe-model 应归入自定义分组");
+-    assert.ok(result["OpenAI"], "gpt-4 应归入 OpenAI");
+-    assert.ok(result["default"], "unknown 应归入 default");
++    assert.deepEqual(
++      [...result],
++      [
++        ["Safe分组", ["safe-model"]],
++        ["OpenAI", ["gpt-4"]],
++        ["default", ["unknown"]],
++      ],
++    );
+   });
+ 
+   test("自定义分组优先于内置分组匹配", () => {
+     const rules = buildGroupRules([{ name: "优先分组", keywords: ["gpt"] }]);
+     const result = groupModels(["gpt-4"], rules);
+-    assert.ok(result["优先分组"], "自定义分组应优先匹配");
+-    assert.ok(!result["OpenAI"], "OpenAI 不应匹配");
++    assert.deepEqual([...result], [["优先分组", ["gpt-4"]]]);
+   });
+ 
+-  test("before 目标不存在时插入到最前", () => {
+-    const rules = buildGroupRules([{ name: "目标不存在", keywords: ["x"], position: { type: "before", target: "不存在的分组" } }]);
+-    assert.equal(rules[0].name, "目标不存在");
++  test("before 目标不存在时拒绝构建规则", () => {
++    assert.throws(
++      () =>
++        buildGroupRules([
++          { name: "目标不存在", keywords: ["x"], position: { type: "before", target: "不存在的分组" } },
++        ]),
++      /无效的分组插入目标/,
++    );
+   });
+ 
+-  test("多个自定义分组同时生效", () => {
+-    const rules = buildGroupRules([
+-      { name: "首组", keywords: ["first-kw"], position: { type: "first" } },
+-      { name: "尾组", keywords: ["last-kw"], position: { type: "last" } },
+-      { name: "OpenAI前组", keywords: ["before-kw"], position: { type: "before", target: "OpenAI" } },
+-    ]);
+-    const result = groupModels(["first-kw-model", "last-kw-model", "before-kw-model", "gpt-4"], rules);
+-    assert.ok(result["首组"]);
+-    assert.ok(result["尾组"]);
+-    assert.ok(result["OpenAI前组"]);
+-    assert.ok(result["OpenAI"]);
++  test("特殊分组名不会破坏分组结果", () => {
++    const rules = buildGroupRules([{ name: "__proto__", keywords: ["special"] }]);
++    const result = groupModels(["special-model"], rules);
++    assert.deepEqual(result.get("__proto__"), ["special-model"]);
++  });
++
++  test("辅助函数按规范化名称查找", () => {
++    const rules = buildGroupRules([{ name: "自定义", keywords: ["custom"], icon: "https://example.com/icon.png" }]);
++    assert.equal(getGroupDisplayName("自定义", rules), "自定义");
++    assert.equal(getGroupIcon("自定义", rules), "https://example.com/icon.png");
++    assert.equal(getGroupDisplayName("DEFAULT", rules), "其他");
+   });
+ });
+diff --git a/src/test/integration.test.ts b/src/test/integration.test.ts
+index 4e1cf50..3a316df 100644
+--- a/src/test/integration.test.ts
++++ b/src/test/integration.test.ts
+@@ -4,6 +4,8 @@ import http from "node:http";
+ import type { Server } from "node:http";
+ 
+ const ORIGINAL_FETCH = globalThis.fetch;
++const ORIGINAL_TEST_SERVER = process.env.TEST_SERVER;
++const ORIGINAL_CONFIG_JSON = process.env.CONFIG_JSON;
+ 
+ const TEST_CONFIG = {
+   sites: [
+@@ -36,11 +38,16 @@ describe("集成测试：启动服务器后检测", () => {
+     process.env.TEST_SERVER = "1";
+     process.env.CONFIG_JSON = JSON.stringify(TEST_CONFIG);
+ 
+-    globalThis.fetch = async () =>
+-      new Response(JSON.stringify({ data: [{ id: "gpt-4" }, { id: "claude-3" }] }), {
++    globalThis.fetch = async (input, init) => {
++      const requestUrl = String(input);
++      const headers = init?.headers as Record<string, string>;
++      const siteB = requestUrl.startsWith("https://api.b.example.com");
++      assert.equal(headers.Authorization, siteB ? "Bearer sk-test-key-b" : "Bearer sk-test-key-a");
++      return new Response(JSON.stringify({ data: [{ id: siteB ? "gemini-pro" : "gpt-4" }] }), {
+         status: 200,
+         headers: { "Content-Type": "application/json" },
+       });
++    };
+ 
+     const module = await import("../api/index.ts");
+     handleRequest = module.default;
+@@ -60,8 +67,10 @@ describe("集成测试：启动服务器后检测", () => {
+ 
+   after(async () => {
+     globalThis.fetch = ORIGINAL_FETCH;
+-    delete process.env.TEST_SERVER;
+-    delete process.env.CONFIG_JSON;
++    if (ORIGINAL_TEST_SERVER === undefined) delete process.env.TEST_SERVER;
++    else process.env.TEST_SERVER = ORIGINAL_TEST_SERVER;
++    if (ORIGINAL_CONFIG_JSON === undefined) delete process.env.CONFIG_JSON;
++    else process.env.CONFIG_JSON = ORIGINAL_CONFIG_JSON;
+     await new Promise<void>((resolve) => server.close(() => resolve()));
+   });
+ 
+@@ -105,14 +114,14 @@ describe("集成测试：启动服务器后检测", () => {
+     const { status, text } = await fetchText(`/?site=${encodeURIComponent("测试站点B")}`);
+ 
+     assert.equal(status, 200);
+-    assert.ok(text.includes("测试站点B"));
++    assert.ok(text.includes("gemini-pro"));
+     assert.ok(!text.includes("sk-test-key-b"));
+   });
+ 
+-  test("未知路径返回 200 并由 SSR 入口处理", async () => {
++  test("未知路径返回 404", async () => {
+     const { status, text } = await fetchText("/unknown-path");
+ 
+-    assert.equal(status, 200);
+-    assert.ok(text.includes("Model Gallery"));
++    assert.equal(status, 404);
++    assert.ok(text.includes("页面不存在"));
+   });
+ });
+diff --git a/src/test/models.test.ts b/src/test/models.test.ts
+index 872a96b..1a37a65 100644
+--- a/src/test/models.test.ts
++++ b/src/test/models.test.ts
+@@ -108,17 +108,25 @@ describe("模型服务 fetchModels", () => {
+   });
+ 
+   test("超时中止请求并返回超时错误且不泄露 API Key", async () => {
++    let aborted = false;
+     mockFetch(
+       (async (_input, init) =>
+         new Promise<Response>((_resolve, reject) => {
+-          init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
++          init?.signal?.addEventListener(
++            "abort",
++            () => {
++              aborted = true;
++              reject(new DOMException("Aborted", "AbortError"));
++            },
++            { once: true },
++          );
+         })) as FetchMock,
+     );
+ 
+-    const result = await fetchModels(TEST_SITE);
++    const result = await fetchModels(TEST_SITE, 20);
+ 
+-    assert.equal(result.models, null);
+-    assert.equal(result.error, "获取模型超时，请稍后重试");
++    assert.equal(aborted, true);
++    assert.deepEqual(result, { models: null, error: "获取模型超时，请稍后重试" });
+     assert.ok(!result.error.includes(TEST_SITE.apiKey));
+   });
+ });
+diff --git a/src/test/poc/01-escape.test.ts b/src/test/poc/01-escape.test.ts
+deleted file mode 100644
+index c7224f4..0000000
+--- a/src/test/poc/01-escape.test.ts
++++ /dev/null
+@@ -1,126 +0,0 @@
+-/**
+- * HTML/属性/JS 字符串转义必要性验证
+- *
+- * 模拟修改前的脆弱实现：直接拼接外部输入到 HTML、属性、内联 JS。
+- * 验证当前实现：使用 escapeHtml / escapeAttribute / escapeJsString 后，
+- * 常见 XSS 攻击载荷均无法注入。
+- */
+-
+-import { test, describe } from "node:test";
+-import assert from "node:assert/strict";
+-import { escapeHtml, escapeAttribute, escapeJsString, isSafeUrl, sanitizeUrl } from "../../ui/escape.ts";
+-
+-// 修改前的脆弱渲染方式：直接拼接
+-type RenderFn = (value: string) => string;
+-
+-const VULNERABLE_RENDERS: Array<{ name: string; old: RenderFn; expectedRisk: string }> = [
+-  {
+-    name: "文本节点注入 <script>",
+-    old: (v) => `<div>${v}</div>`,
+-    expectedRisk: "<script>",
+-  },
+-  {
+-    name: "onclick 属性 breakout",
+-    old: (v) => `<div onclick="copyToClipboard('${v}')">x</div>`,
+-    expectedRisk: "alert('xss')",
+-  },
+-  {
+-    name: "href 属性 breakout",
+-    old: (v) => `<a href="${v}">link</a>`,
+-    expectedRisk: "javascript:alert(",
+-  },
+-  {
+-    name: "img src 属性 breakout",
+-    old: (v) => `<img src="${v}" alt="icon">`,
+-    expectedRisk: "onerror=",
+-  },
+-];
+-
+-const PAYLOADS: Record<string, string> = {
+-  "文本节点注入 <script>": "<script>alert('xss')</script>",
+-  "onclick 属性 breakout": "');alert('xss');//",
+-  "href 属性 breakout": 'javascript:alert("xss")',
+-  "img src 属性 breakout": 'x" onerror=alert("xss")',
+-};
+-
+-// 当前安全的渲染方式：按上下文分层转义
+-const SAFE_RENDERS: Record<string, RenderFn> = {
+-  "文本节点注入 <script>": (v) => `<div>${escapeHtml(v)}</div>`,
+-  "onclick 属性 breakout": (v) => `<div onclick="copyToClipboard('${escapeAttribute(escapeJsString(v))}')">x</div>`,
+-  "href 属性 breakout": (v) => `<a href="${escapeAttribute(v)}">link</a>`,
+-  "img src 属性 breakout": (v) => `<img src="${escapeAttribute(v)}" alt="icon">`,
+-};
+-
+-describe("[PoC] HTML/属性/JS 转义：修改前 vs 修改后", () => {
+-  for (const { name, old, expectedRisk } of VULNERABLE_RENDERS) {
+-    const payload = PAYLOADS[name];
+-
+-    test(`「${name}」旧实现可注入，新实现被转义`, () => {
+-      const oldHtml = old(payload);
+-      const newHtml = SAFE_RENDERS[name](payload);
+-
+-      // 旧实现包含原始风险片段
+-      assert.ok(oldHtml.includes(expectedRisk), `旧实现应包含风险片段：${expectedRisk}`);
+-
+-      // 新实现：风险片段不再以可执行形式出现
+-      if (expectedRisk === "<script>") {
+-        assert.ok(!newHtml.includes("<script>"), "文本节点中 <script> 应被转义");
+-      }
+-      if (expectedRisk === "alert('xss')") {
+-        // JS 字符串中的单引号被转义，无法闭合字符串
+-        const jsString = newHtml.match(/onclick="copyToClipboard\('(.+?)'\)"/)?.[1] ?? "";
+-        assert.ok(!jsString.includes("'"), "JS 字符串单引号应被转义");
+-      }
+-      if (expectedRisk === "javascript:alert(") {
+-        // 旧实现：href="javascript:alert(\"xss\")" 可直接点击执行
+-        // 新实现：alert 的双引号被转义为 &quot;，调用被破坏
+-        assert.ok(oldHtml.includes('href="javascript:alert("xss")"'), "旧实现应包含可执行 javascript: href");
+-        assert.ok(!newHtml.includes('href="javascript:alert("xss")"'), "新实现不应包含可执行 javascript: href");
+-        assert.ok(newHtml.includes("&quot;"), "新实现应转义 href 中的双引号");
+-      }
+-      if (expectedRisk === "onerror=") {
+-        // src 属性中的双引号被转义，无法闭合属性
+-        assert.ok(!newHtml.includes('src="x" onerror='), "img src 不应 breakout");
+-        assert.ok(newHtml.includes("&quot;"), "src 属性中的双引号应被转义");
+-      }
+-    });
+-  }
+-
+-  test("escapeHtml 对文本节点输出可预期的 HTML 实体", () => {
+-    assert.equal(escapeHtml("<b>bold</b>"), "&lt;b&gt;bold&lt;/b&gt;");
+-    assert.equal(escapeHtml("Tom & Jerry"), "Tom &amp; Jerry");
+-  });
+-
+-  test("escapeAttribute 额外转义引号", () => {
+-    assert.equal(escapeAttribute('value"with\'quotes'), "value&quot;with&#39;quotes");
+-  });
+-
+-  test("escapeJsString 破坏 JS 字符串逃逸", () => {
+-    assert.ok(!escapeJsString("');alert(1);//").includes("'"));
+-    assert.ok(escapeJsString("<script>").includes("\\x3C"));
+-    assert.ok(escapeJsString("line\nbreak").includes("\\n"));
+-  });
+-
+-  test("isSafeUrl 只允许 http:// 和 https:// 协议", () => {
+-    assert.equal(isSafeUrl("https://example.com"), true);
+-    assert.equal(isSafeUrl("http://example.com"), true);
+-    assert.equal(isSafeUrl("javascript:alert(1)"), false);
+-    assert.equal(isSafeUrl("data:text/html,<script>alert(1)</script>"), false);
+-    assert.equal(isSafeUrl("ftp://example.com"), false);
+-    assert.equal(isSafeUrl("not-a-url"), false);
+-  });
+-
+-  test("sanitizeUrl 对危险 URL fallback 到 # 或空字符串", () => {
+-    assert.equal(sanitizeUrl("javascript:alert(1)"), "#");
+-    assert.equal(sanitizeUrl("https://example.com"), "https://example.com");
+-    assert.equal(sanitizeUrl("javascript:alert(1)", ""), "");
+-  });
+-
+-  test("无引号 javascript: 伪协议在渲染层被阻止", () => {
+-    const maliciousUrl = "javascript:alert(document.cookie)";
+-    const safeHref = sanitizeUrl(maliciousUrl);
+-    const html = `<a href="${escapeAttribute(safeHref)}">link</a>`;
+-    assert.ok(!html.includes("javascript:"), "href 中不应包含 javascript:");
+-    assert.ok(html.includes('href="#"'), "危险 URL 应被替换为 #");
+-  });
+-});
+diff --git a/src/test/poc/02-models.test.ts b/src/test/poc/02-models.test.ts
+deleted file mode 100644
+index b61f52e..0000000
+--- a/src/test/poc/02-models.test.ts
++++ /dev/null
+@@ -1,106 +0,0 @@
+-/**
+- * 模型服务必要性验证
+- *
+- * 模拟修改前的脆弱实现：无超时、无响应结构校验、无错误分类。
+- * 验证当前实现：fetchModels 在超时、非 2xx、非法 JSON、非法结构、网络异常
+- * 等场景下均能返回可控错误，且不会输出 undefined/空字符串模型 ID。
+- */
+-
+-import { test, describe, beforeEach, afterEach } from "node:test";
+-import assert from "node:assert/strict";
+-import { fetchModels } from "../../services/models.ts";
+-import type { SiteConfig } from "../../types.ts";
+-
+-const ORIGINAL_FETCH = globalThis.fetch;
+-
+-const TEST_SITE: SiteConfig = {
+-  name: "验证站点",
+-  apiUrl: "https://api.example.com/",
+-  apiKey: "sk-secret-key",
+-  apiEndpoint: "/v1/models",
+-  externalUrl: "https://example.com",
+-  iconUrl: "https://example.com/icon.png",
+-};
+-
+-// 修改前的脆弱实现：无超时、无校验、无错误分类
+-async function oldFetchModels(site: SiteConfig): Promise<string[]> {
+-  const url = `${site.apiUrl.replace(/\/$/, "")}/${site.apiEndpoint.replace(/^\//, "")}`;
+-  const response = await fetch(url, {
+-    headers: { Authorization: `Bearer ${site.apiKey}`, "Content-Type": "application/json" },
+-  });
+-  const data = (await response.json()) as { data: Array<{ id: string }> };
+-  return data.data.map((m) => m.id);
+-}
+-
+-describe("[PoC] 模型服务：修改前 vs 修改后", () => {
+-  beforeEach(() => {
+-    globalThis.fetch = (() => {
+-      throw new Error("unmocked fetch");
+-    }) as typeof fetch;
+-  });
+-
+-  afterEach(() => {
+-    globalThis.fetch = ORIGINAL_FETCH;
+-  });
+-
+-  test("旧实现遇到非 2xx 会抛异常，新实现返回明确错误", async () => {
+-    globalThis.fetch = async () => new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 });
+-
+-    await assert.rejects(() => oldFetchModels(TEST_SITE), /unauthorized|Cannot read properties of undefined|Unexpected token|fetch failed/);
+-
+-    const result = await fetchModels(TEST_SITE);
+-    assert.equal(result.models, null);
+-    assert.match(result.error!, /401/);
+-  });
+-
+-  test("旧实现遇到非法 JSON 会抛异常，新实现返回明确错误", async () => {
+-    globalThis.fetch = async () => new Response("not-json", { status: 200 });
+-
+-    await assert.rejects(() => oldFetchModels(TEST_SITE), /Unexpected token|JSON/);
+-
+-    const result = await fetchModels(TEST_SITE);
+-    assert.equal(result.models, null);
+-    assert.equal(result.error, "API 响应不是有效 JSON");
+-  });
+-
+-  test("旧实现会输出 undefined/非字符串/空字符串模型 ID，新实现过滤它们", async () => {
+-    globalThis.fetch = async () =>
+-      new Response(
+-        JSON.stringify({
+-          data: [{ id: "gpt-4" }, {}, { id: 123 }, { id: "" }, { id: "   " }, { id: "claude-3" }],
+-        }),
+-        { status: 200 },
+-      );
+-
+-    const oldResult = await oldFetchModels(TEST_SITE);
+-    assert.ok(oldResult.includes(undefined as unknown as string) || oldResult.includes("" as string), "旧实现包含脏数据");
+-
+-    const newResult = await fetchModels(TEST_SITE);
+-    assert.deepEqual(newResult.models, ["gpt-4", "claude-3"]);
+-    assert.equal(newResult.error, null);
+-  });
+-
+-  test("旧实现无超时会被慢响应挂住，新实现 10 秒后返回超时错误", async () => {
+-    globalThis.fetch = async (_input, init) =>
+-      new Promise<Response>((_resolve, reject) => {
+-        init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+-      });
+-
+-    const start = Date.now();
+-    const result = await fetchModels(TEST_SITE);
+-    const elapsed = Date.now() - start;
+-
+-    assert.equal(result.models, null);
+-    assert.equal(result.error, "获取模型超时，请稍后重试");
+-    assert.ok(elapsed >= 9000 && elapsed <= 12000, `超时应约 10 秒，实际 ${elapsed}ms`);
+-  });
+-
+-  test("错误信息中不泄露 API Key", async () => {
+-    globalThis.fetch = async () => {
+-      throw new Error(`connect failed with ${TEST_SITE.apiKey}`);
+-    };
+-
+-    const result = await fetchModels(TEST_SITE);
+-    assert.ok(!result.error!.includes(TEST_SITE.apiKey), "错误信息不得包含 API Key");
+-  });
+-});
+diff --git a/src/test/poc/03-api-key.test.ts b/src/test/poc/03-api-key.test.ts
+deleted file mode 100644
+index bfa3e98..0000000
+--- a/src/test/poc/03-api-key.test.ts
++++ /dev/null
+@@ -1,68 +0,0 @@
+-/**
+- * API Key 防泄露必要性验证
+- *
+- * 模拟修改前的脆弱实现：将站点对象直接序列化或拼接进 HTML。
+- * 验证当前实现：renderHeader / renderSiteSelector / renderRefreshButton / renderPage
+- * 均不会把 apiKey 输出到页面。
+- */
+-
+-import { test, describe } from "node:test";
+-import assert from "node:assert/strict";
+-import { renderHeader, renderRefreshButton, renderSiteSelector } from "../../ui/components.ts";
+-import { renderPage } from "../../ui/page.ts";
+-import { buildGroupRules } from "../../config/groupConfig.ts";
+-import type { AppConfig, SiteConfig } from "../../types.ts";
+-
+-const RULES = buildGroupRules();
+-
+-const SITE: SiteConfig = {
+-  name: "泄漏风险站点",
+-  apiUrl: "https://api.example.com",
+-  apiKey: "sk-live-secret-key-12345",
+-  apiEndpoint: "/v1/models",
+-  externalUrl: "https://example.com",
+-  iconUrl: "https://example.com/icon.png",
+-};
+-
+-const APP_CONFIG: AppConfig = {
+-  sites: [SITE, { ...SITE, name: "另一个站点", apiKey: "sk-another-secret" }],
+-  defaultSite: SITE.name,
+-};
+-
+-// 修改前的脆弱实现：可能把站点对象序列化到某个属性或直接输出
+-function oldRenderHeader(site: SiteConfig): string {
+-  return `<header data-site='${JSON.stringify(site)}'><h1>${site.name}</h1></header>`;
+-}
+-
+-describe("[PoC] API Key 防泄露：修改前 vs 修改后", () => {
+-  test("旧实现会把包含 apiKey 的 JSON 直接输出到 HTML", () => {
+-    const html = oldRenderHeader(SITE);
+-    assert.ok(html.includes(SITE.apiKey), "旧实现泄露了 API Key");
+-  });
+-
+-  test("renderHeader 不输出 apiKey", () => {
+-    const html = renderHeader(SITE, 1, 1);
+-    assert.ok(!html.includes(SITE.apiKey), "renderHeader 不得包含 apiKey");
+-  });
+-
+-  test("renderSiteSelector 不输出任何站点的 apiKey", () => {
+-    const html = renderSiteSelector(APP_CONFIG, SITE.name);
+-    assert.ok(!html.includes("sk-live-secret-key-12345"), "不得包含第一个站点 apiKey");
+-    assert.ok(!html.includes("sk-another-secret"), "不得包含第二个站点 apiKey");
+-  });
+-
+-  test("renderRefreshButton 不输出 apiKey", () => {
+-    const html = renderRefreshButton(SITE.name);
+-    assert.ok(!html.includes(SITE.apiKey), "renderRefreshButton 不得包含 apiKey");
+-  });
+-
+-  test("renderPage 在正常页、错误页、空状态页均不输出 apiKey", () => {
+-    const normalHtml = renderPage(APP_CONFIG, SITE, ["gpt-4"], null, RULES);
+-    const errorHtml = renderPage(APP_CONFIG, SITE, null, "获取模型失败", RULES);
+-    const emptyHtml = renderPage(APP_CONFIG, SITE, [], null, RULES);
+-
+-    for (const html of [normalHtml, errorHtml, emptyHtml]) {
+-      assert.ok(!html.includes(SITE.apiKey), "renderPage 不得包含 apiKey");
+-    }
+-  });
+-});
+diff --git a/src/test/poc/04-config.test.ts b/src/test/poc/04-config.test.ts
+deleted file mode 100644
+index f6afd39..0000000
+--- a/src/test/poc/04-config.test.ts
++++ /dev/null
+@@ -1,64 +0,0 @@
+-/**
+- * 配置加载可重复性验证
+- *
+- * 模拟修改前的脆弱实现：loadAppConfig 只能读取 cwd/config.json。
+- * 验证当前实现：支持通过参数指定配置文件路径，也支持 CONFIG_JSON 环境变量，
+- * 因此测试可以用临时 fixture 运行，不依赖开发者本机真实 config.json。
+- */
+-
+-import { test, describe, before, after } from "node:test";
+-import assert from "node:assert/strict";
+-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+-import { join } from "node:path";
+-import { tmpdir } from "node:os";
+-import { loadAppConfig } from "../../config/appConfig.ts";
+-
+-const ORIGINAL_ENV = process.env.CONFIG_JSON;
+-let tempDir: string | undefined;
+-
+-async function createFixture(content: unknown): Promise<string> {
+-  tempDir ??= await mkdtemp(join(tmpdir(), "model-gallery-verify-"));
+-  const filePath = join(tempDir, `config-${Date.now()}.json`);
+-  await writeFile(filePath, JSON.stringify(content), "utf-8");
+-  return filePath;
+-}
+-
+-describe("[PoC] 配置加载可重复性：修改前 vs 修改后", () => {
+-  before(() => {
+-    delete process.env.CONFIG_JSON;
+-  });
+-
+-  after(async () => {
+-    if (ORIGINAL_ENV) process.env.CONFIG_JSON = ORIGINAL_ENV;
+-    else delete process.env.CONFIG_JSON;
+-    if (tempDir) await rm(tempDir, { recursive: true, force: true });
+-  });
+-
+-  test("旧实现只能读取 cwd/config.json，无法注入临时配置", async () => {
+-    // 旧实现：loadAppConfig() 固定读取 process.cwd()/config.json
+-    // 在当前仓库，真实 config.json 存在，但 CI/fresh clone 中可能不存在。
+-    // 这里用临时 fixture 路径证明当前实现可以注入配置。
+-    const fixturePath = await createFixture({
+-      sites: [{ name: "临时站点", apiUrl: "https://temp.com", apiKey: "sk-temp" }],
+-    });
+-
+-    const config = await loadAppConfig(fixturePath);
+-    assert.equal(config.sites[0].name, "临时站点");
+-  });
+-
+-  test("CONFIG_JSON 环境变量优先于文件，支持无文件部署", async () => {
+-    process.env.CONFIG_JSON = JSON.stringify({
+-      sites: [{ name: "环境变量站点", apiUrl: "https://env.com", apiKey: "sk-env" }],
+-    });
+-
+-    const config = await loadAppConfig();
+-    assert.equal(config.sites[0].name, "环境变量站点");
+-
+-    delete process.env.CONFIG_JSON;
+-  });
+-
+-  test("缺少配置文件且未设置环境变量时报错明确", async () => {
+-    const missingPath = join(tmpdir(), `missing-config-${Date.now()}.json`);
+-    await assert.rejects(() => loadAppConfig(missingPath), /本地配置文件不存在/);
+-  });
+-});
+diff --git a/src/test/render.test.ts b/src/test/render.test.ts
+index e549e24..f4afb2f 100644
+--- a/src/test/render.test.ts
++++ b/src/test/render.test.ts
+@@ -68,16 +68,25 @@ describe("渲染字段验证", () => {
+     assert.ok(!html.includes(`href="${currentSiteHref}"`), "当前站点不应出现在下拉列表");
+   });
+ 
+-  test("site selector 单站点时不渲染", () => {
+-    const singleConfig: AppConfig = { sites: [TEST_SITE], defaultSite: "测试站点" };
+-    const html = renderSiteSelector(singleConfig, "测试站点");
+-    assert.equal(html, "", "单站点时 site selector 应为空");
++  test("外链增加 noopener 防护", () => {
++    const html = renderHeader(TEST_SITE, 1, 1);
++    assert.ok(html.includes('target="_blank" rel="noopener noreferrer"'));
+   });
+ 
+-  test("refresh button 包含当前站点链接", () => {
++  test("完整页面按分组规则顺序渲染，而非按数量排序", () => {
++    const rules = buildGroupRules([
++      { name: "自定义首", keywords: ["custom"], position: { type: "first" } },
++      { name: "自定义尾", keywords: ["tail"], position: { type: "last" } },
++    ]);
++    const html = renderPage(TEST_CONFIG, TEST_SITE, ["gpt-1", "gpt-2", "custom-model", "tail-model"], null, rules);
++    assert.ok(html.indexOf("自定义首") < html.indexOf("OpenAI"));
++    assert.ok(html.indexOf("自定义尾") > html.indexOf("OpenAI"));
++  });
++
++  test("refresh button 包含当前站点精确链接", () => {
+     const html = renderRefreshButton("测试站点");
+     const encoded = encodeURIComponent("测试站点");
+-    assert.ok(html.includes(`/\\?site=${encoded}`) || html.includes(`/?site=${encoded}`), "应包含编码后的站点链接");
++    assert.ok(html.includes(`href="/?site=${encoded}"`));
+   });
+ 
+   test("refresh button 无站点名时链接为根路径", () => {
+@@ -169,7 +178,10 @@ describe("安全性验证 - HTML 和属性转义", () => {
+   });
+ 
+   test("escapeAttribute 转义属性危险字符", () => {
+-    assert.equal(escapeAttribute(`" onmouseover='alert(1)' & <x>`), `&quot; onmouseover=&#39;alert(1)&#39; &amp; &lt;x&gt;`);
++    assert.equal(
++      escapeAttribute(`" onmouseover='alert(1)' & <x>`),
++      `&quot; onmouseover=&#39;alert(1)&#39; &amp; &lt;x&gt;`,
++    );
+   });
+ 
+   test("escapeJsString 转义内联事件字符串危险字符", () => {
+@@ -201,7 +213,10 @@ describe("安全性验证 - HTML 和属性转义", () => {
+     const html = renderHeader(site, 1, 2);
+     assert.ok(html.includes('&lt;b onclick="alert(1)"&gt;evil&lt;/b&gt;'), "站点名应作为文本转义");
+     assert.ok(html.includes(`href="https://example.com/&quot; onclick=&quot;alert(1)"`), "外链应作为属性转义");
+-    assert.ok(html.includes(`src="https://example.com/icon.png&quot; onerror=&quot;alert(1)"`), "图标 URL 应作为属性转义");
++    assert.ok(
++      html.includes(`src="https://example.com/icon.png&quot; onerror=&quot;alert(1)"`),
++      "图标 URL 应作为属性转义",
++    );
+     assert.ok(!html.includes(site.name), "header 不应包含原始站点名 HTML");
+   });
+ 
+@@ -223,8 +238,14 @@ describe("安全性验证 - HTML 和属性转义", () => {
+     ]);
+     const html = renderPage(TEST_CONFIG, TEST_SITE, ["unsafe-model"], null, customRules);
+     assert.ok(html.includes("&lt;img src=x onerror=alert(1)&gt;"), "自定义分组名应作为文本转义");
+-    assert.ok(html.includes(`src="https://example.com/icon.png&quot; onerror=&quot;alert(1)"`), "自定义图标应作为属性转义");
+-    assert.ok(!html.includes(`<h3 class="text-[17px] font-semibold text-[var(--text-primary)] tracking-tight"><img`), "分组标题不应注入 HTML");
++    assert.ok(
++      html.includes(`src="https://example.com/icon.png&quot; onerror=&quot;alert(1)"`),
++      "自定义图标应作为属性转义",
++    );
++    assert.ok(
++      !html.includes(`<h3 class="text-[17px] font-semibold text-[var(--text-primary)] tracking-tight"><img`),
++      "分组标题不应注入 HTML",
++    );
+   });
+ 
+   test("isSafeUrl 只允许 http/https 协议", () => {
+diff --git a/src/types.ts b/src/types.ts
+index ba7a8e3..98821c9 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -1,13 +1,9 @@
+-export interface GroupConfig {
+-  name?: string;
++export interface GroupRule {
++  name: string;
+   icon: string;
+   keywords?: string[];
+ }
+ 
+-export interface GroupRule extends GroupConfig {
+-  name: string;
+-}
+-
+ export interface SiteConfig {
+   name: string;
+   apiUrl: string;
+@@ -36,5 +32,5 @@ export interface AppConfig {
+ }
+ 
+ export interface ModelResponse {
+-  data?: { id: string }[];
++  data?: unknown;
+ }
+diff --git a/src/ui/components.ts b/src/ui/components.ts
+index 98293c6..bee840a 100644
+--- a/src/ui/components.ts
++++ b/src/ui/components.ts
+@@ -1,10 +1,9 @@
+ import type { AppConfig, GroupRule, SiteConfig } from "../types.ts";
+-import { getGroupDisplayName, getGroupIcon } from "../config/groupConfig.ts";
+-import { escapeAttribute, escapeHtml, escapeJsString, sanitizeUrl } from "./escape.ts";
++import { escapeAttribute, escapeHtml, sanitizeUrl } from "./escape.ts";
+ 
+ export function renderThemeToggle(): string {
+   return `
+-    <button id="themeToggleBtn" onclick="toggleTheme()"
++    <button id="themeToggleBtn" data-action="toggle-theme"
+       class="theme-toggle fixed bottom-24 right-6 z-50 w-12 h-12 flex items-center justify-center rounded-full bg-[var(--bg-card-solid)] hover:bg-[var(--bg-card-hover)] border border-[var(--border-medium)] hover:border-[var(--border-strong)] shadow-[var(--shadow-lg)] hover:shadow-[var(--shadow-md)] transition-all duration-200 active:scale-95 text-[var(--text-primary)]">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+@@ -14,12 +13,11 @@ export function renderThemeToggle(): string {
+ 
+ export function renderSiteSelector(appConfig: AppConfig, currentSiteName: string): string {
+   if (appConfig.sites.length <= 1) return "";
+-
+-  const otherSites = appConfig.sites.filter((s) => s.name !== currentSiteName);
+-
++  const currentKey = currentSiteName.toLowerCase();
++  const otherSites = appConfig.sites.filter((site) => site.name.toLowerCase() !== currentKey);
+   return `
+     <div class="fixed top-4 left-4 z-50">
+-      <button id="siteSelectorBtn" onclick="toggleSiteSelector()"
++      <button id="siteSelectorBtn" data-action="toggle-site-selector"
+         class="flex items-center justify-center w-10 h-10 rounded-xl bg-[var(--bg-card-solid)]/90 hover:bg-[var(--bg-card-solid)] border border-[var(--border-medium)] hover:border-[var(--border-strong)] shadow-[var(--shadow-md)] hover:shadow-[var(--shadow-lg)] transition-all duration-200">
+         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" class="text-[var(--text-primary)]">
+           <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+@@ -29,12 +27,10 @@ export function renderSiteSelector(appConfig: AppConfig, currentSiteName: string
+         class="absolute top-full left-0 mt-2 w-48 bg-[var(--bg-card-solid)]/95 backdrop-blur-xl rounded-xl border border-[var(--border-medium)] shadow-[var(--shadow-xl)] opacity-0 invisible transition-all duration-200">
+         ${otherSites
+           .map(
+-            (site) => `
+-          <a href="${escapeAttribute(`/?site=${encodeURIComponent(site.name)}`)}"
++            (site) => `<a href="${escapeAttribute(`/?site=${encodeURIComponent(site.name)}`)}"
+             class="block w-full text-left px-4 py-3 text-sm text-[var(--text-primary)] hover:bg-[var(--hover-bg)] first:rounded-t-xl last:rounded-b-xl transition-colors">
+             ${escapeHtml(site.name)}
+-          </a>
+-        `,
++          </a>`,
+           )
+           .join("")}
+       </div>
+@@ -43,11 +39,9 @@ export function renderSiteSelector(appConfig: AppConfig, currentSiteName: string
+ 
+ export function renderRefreshButton(currentSiteName: string): string {
+   const href = currentSiteName ? `/?site=${encodeURIComponent(currentSiteName)}` : "/";
+-  return `
+-    <a href="${escapeAttribute(href)}" class="fixed bottom-6 right-6 z-50 w-12 h-12 flex items-center justify-center rounded-full bg-[var(--text-primary)] hover:opacity-90 text-[var(--bg-gradient-start)] shadow-[var(--shadow-xl)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.3)] transition-all duration-200 active:scale-95">
++  return `<a href="${escapeAttribute(href)}" class="fixed bottom-6 right-6 z-50 w-12 h-12 flex items-center justify-center rounded-full bg-[var(--text-primary)] hover:opacity-90 text-[var(--bg-gradient-start)] shadow-[var(--shadow-xl)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.3)] transition-all duration-200 active:scale-95">
+       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+-        <path d="M21 12a9 9 0 11-3-6.7"/>
+-        <path d="M21 3v6h-6"/>
++        <path d="M21 12a9 9 0 11-3-6.7"/><path d="M21 3v6h-6"/>
+       </svg>
+     </a>`;
+ }
+@@ -55,113 +49,47 @@ export function renderRefreshButton(currentSiteName: string): string {
+ export function renderHeader(site: SiteConfig, groupCount: number, modelCount: number): string {
+   const safeExternalUrl = sanitizeUrl(site.externalUrl);
+   const safeIconUrl = sanitizeUrl(site.iconUrl, "");
+-  return `
+-    <header class="animate-in flex items-center justify-between mb-10 rounded-[20px] px-6 py-4 bg-[var(--bg-card)] backdrop-blur-xl border border-[var(--border-white)] shadow-[var(--shadow-lg)]">
++  return `<header class="animate-in flex items-center justify-between mb-10 rounded-[20px] px-6 py-4 bg-[var(--bg-card)] backdrop-blur-xl border border-[var(--border-white)] shadow-[var(--shadow-lg)]">
+       <div class="flex items-center space-x-5">
+-        <a href="${escapeAttribute(safeExternalUrl)}" target="_blank" class="group">
++        <a href="${escapeAttribute(safeExternalUrl)}" target="_blank" rel="noopener noreferrer" class="group">
+           <div class="logo-container w-16 h-16 rounded-[18px] bg-[var(--bg-card-solid)] p-1 shadow-[var(--logo-shadow)] overflow-hidden relative">
+             ${safeIconUrl ? `<img src="${escapeAttribute(safeIconUrl)}" alt="站点图标" loading="lazy" class="w-full h-full rounded-[14px] object-cover">` : ""}
+           </div>
+         </a>
+         <h1 class="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">${escapeHtml(site.name)}</h1>
+       </div>
+-      <div class="flex items-center space-x-4 mr-6">
+-        <div class="text-center">
+-          <div class="text-[17px] font-semibold text-[var(--text-primary)] tracking-tight">${groupCount}</div>
+-          <div class="text-xs text-[var(--text-secondary)] mt-0.5">渠道</div>
+-        </div>
+-        <div class="w-px h-10 bg-[var(--divider)]"></div>
+-        <div class="text-center">
+-          <div class="text-[17px] font-semibold text-[var(--text-primary)] tracking-tight">${modelCount}</div>
+-          <div class="text-xs text-[var(--text-secondary)] mt-0.5">模型</div>
+-        </div>
+-      </div>
++      <div class="flex items-center space-x-4 mr-6"><div class="text-center"><div class="text-[17px] font-semibold text-[var(--text-primary)] tracking-tight">${groupCount}</div><div class="text-xs text-[var(--text-secondary)] mt-0.5">渠道</div></div><div class="w-px h-10 bg-[var(--divider)]"></div><div class="text-center"><div class="text-[17px] font-semibold text-[var(--text-primary)] tracking-tight">${modelCount}</div><div class="text-xs text-[var(--text-secondary)] mt-0.5">模型</div></div></div>
+     </header>`;
+ }
+ 
+ export function renderNotification(): string {
+-  return `
+-    <div id="notification" class="notification notification-hidden fixed top-6 right-6 px-5 py-3.5 z-50 text-[var(--bg-gradient-start)] text-sm font-medium rounded-[14px] shadow-[var(--shadow-xl)] transition-all duration-400 ease-out">
+-      <div class="flex items-center space-x-2.5">
+-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+-          <path d="M9 1.5C4.85775 1.5 1.5 4.85775 1.5 9C1.5 13.1422 4.85775 16.5 9 16.5C13.1422 16.5 16.5 13.1422 16.5 9C16.5 4.85775 13.1422 1.5 9 1.5ZM12.375 7.125L8.0625 11.4375C7.905 11.595 7.7025 11.6715 7.5 11.6715C7.2975 11.6715 7.095 11.595 6.9375 11.4375L5.625 10.125C5.31 9.81 5.31 9.315 5.625 9C5.94 8.685 6.435 8.685 6.75 9L7.5 9.75L11.25 6C11.565 5.685 12.06 5.685 12.375 6C12.69 6.315 12.69 6.81 12.375 7.125Z" fill="currentColor"/>
+-        </svg>
+-        <span>已复制到剪贴板</span>
+-      </div>
+-    </div>`;
++  return `<div id="notification" class="notification notification-hidden fixed top-6 right-6 px-5 py-3.5 z-50 text-[var(--bg-gradient-start)] text-sm font-medium rounded-[14px] shadow-[var(--shadow-xl)] transition-all duration-400 ease-out"><div class="flex items-center space-x-2.5"><span>已复制到剪贴板</span></div></div>`;
+ }
+ 
+-function renderModelCard(model: string, groupName: string, rules: GroupRule[]): string {
+-  const groupIcon = getGroupIcon(groupName, rules);
+-  return `
+-    <div class="group relative bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] border border-[var(--border-light)] hover:border-[var(--border-medium)] rounded-2xl p-4 cursor-pointer shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] hover:-translate-y-px active:scale-[0.98] transition-all duration-200" 
+-      onclick="copyToClipboard('${escapeAttribute(escapeJsString(model))}')">
+-      <div class="flex items-center space-x-3">
+-        <img src="${escapeAttribute(groupIcon)}" alt="${escapeAttribute(groupName)}" loading="lazy" class="w-9 h-9 rounded-[10px] object-cover flex-shrink-0">
+-        <div class="flex-1 min-w-0 text-[13px] font-medium text-[var(--text-primary)] leading-snug break-all tracking-tight">${escapeHtml(model)}</div>
+-      </div>
+-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" class="absolute top-3 right-3 text-[var(--text-secondary)] opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+-        <path d="M4.5 2H11V8.5M11 2L3 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+-      </svg>
++function renderModelCard(model: string, group: GroupRule): string {
++  const icon = sanitizeUrl(group.icon, "");
++  return `<div class="group relative bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] border border-[var(--border-light)] hover:border-[var(--border-medium)] rounded-2xl p-4 cursor-pointer shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] hover:-translate-y-px active:scale-[0.98] transition-all duration-200" data-action="copy-model" data-model="${escapeAttribute(model)}">
++      <div class="flex items-center space-x-3"><img src="${escapeAttribute(icon)}" alt="${escapeAttribute(group.name)}" loading="lazy" class="w-9 h-9 rounded-[10px] object-cover flex-shrink-0"><div class="flex-1 min-w-0 text-[13px] font-medium text-[var(--text-primary)] leading-snug break-all tracking-tight">${escapeHtml(model)}</div></div>
++      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" class="absolute top-3 right-3 text-[var(--text-secondary)] opacity-0 group-hover:opacity-100 transition-opacity duration-200"><path d="M4.5 2H11V8.5M11 2L3 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+     </div>`;
+ }
+ 
+-export function renderGroupSection(groupName: string, models: string[], rules: GroupRule[], index: number = 0): string {
+-  const displayName = getGroupDisplayName(groupName, rules);
++export function renderGroupSection(group: GroupRule, models: string[], index = 0): string {
++  const displayName = group.name.toLowerCase() === "default" ? "其他" : group.name;
+   const delayClass = index < 5 ? `delay-${index + 1}` : "";
+-  const groupIcon = getGroupIcon(groupName, rules);
+-
+-  return `
+-    <section class="animate-in ${escapeAttribute(delayClass)} mb-6 rounded-[20px] bg-[var(--bg-card)] backdrop-blur-xl border border-[var(--border-white)] shadow-[var(--shadow-lg)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.06)] transition-shadow duration-400">
+-      <div class="flex items-center justify-between p-5 cursor-pointer select-none rounded-t-[20px] hover:bg-[var(--hover-bg)] transition-colors"
+-        onclick="toggleGroup('${escapeAttribute(escapeJsString(groupName))}')">
+-        <div class="flex items-center space-x-4">
+-          <div class="w-11 h-11 rounded-[14px] bg-[var(--bg-input)] flex items-center justify-center overflow-hidden">
+-            <img src="${escapeAttribute(groupIcon)}" alt="${escapeAttribute(displayName)}" loading="lazy" class="w-7 h-7 object-cover">
+-          </div>
+-          <div>
+-            <h3 class="text-[17px] font-semibold text-[var(--text-primary)] tracking-tight">${escapeHtml(displayName)}</h3>
+-            <p class="text-[13px] text-[var(--text-secondary)] mt-0.5">${models.length} 个模型</p>
+-          </div>
+-        </div>
+-        <div class="w-8 h-8 rounded-full bg-[var(--bg-input)] flex items-center justify-center transition-all duration-300 hover:bg-[var(--bg-input-hover)]">
+-          <svg id="icon-${escapeAttribute(groupName)}" width="12" height="12" viewBox="0 0 12 12" fill="none" class="text-[var(--text-secondary)] transition-transform duration-300">
+-            <path d="M2 4.5L6 8.5L10 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+-          </svg>
+-        </div>
+-      </div>
+-      <div id="content-${escapeAttribute(groupName)}" class="overflow-hidden transition-all duration-400 ease-out max-h-[2000px] opacity-100">
+-        <div class="px-5 pb-5">
+-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+-            ${models.map((model) => renderModelCard(model, groupName, rules)).join("")}
+-          </div>
+-        </div>
+-      </div>
++  const icon = sanitizeUrl(group.icon, "");
++  return `<section class="animate-in ${escapeAttribute(delayClass)} mb-6 rounded-[20px] bg-[var(--bg-card)] backdrop-blur-xl border border-[var(--border-white)] shadow-[var(--shadow-lg)] transition-shadow duration-400">
++      <div class="flex items-center justify-between p-5 cursor-pointer select-none rounded-t-[20px] hover:bg-[var(--hover-bg)] transition-colors" data-action="toggle-group" data-group="${escapeAttribute(group.name)}">
++        <div class="flex items-center space-x-4"><div class="w-11 h-11 rounded-[14px] bg-[var(--bg-input)] flex items-center justify-center overflow-hidden"><img src="${escapeAttribute(icon)}" alt="${escapeAttribute(displayName)}" loading="lazy" class="w-7 h-7 object-cover"></div><div><h3 class="text-[17px] font-semibold text-[var(--text-primary)] tracking-tight">${escapeHtml(displayName)}</h3><p class="text-[13px] text-[var(--text-secondary)] mt-0.5">${models.length} 个模型</p></div></div>
++        <div class="w-8 h-8 rounded-full bg-[var(--bg-input)] flex items-center justify-center transition-all duration-300 hover:bg-[var(--bg-input-hover)]"><svg data-role="group-icon" width="12" height="12" viewBox="0 0 12 12" fill="none" class="text-[var(--text-secondary)] transition-transform duration-300"><path d="M2 4.5L6 8.5L10 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
++      </div><div data-role="group-content" class="overflow-hidden transition-all duration-400 ease-out max-h-[2000px] opacity-100"><div class="px-5 pb-5"><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">${models.map((model) => renderModelCard(model, group)).join("")}</div></div></div>
+     </section>`;
+ }
+ 
+ export function renderError(error: string): string {
+-  return `
+-    <div class="animate-in delay-2 rounded-[20px] p-10 text-center max-w-[480px] mx-auto mb-12 bg-[var(--bg-card)] backdrop-blur-xl border border-[var(--border-white)] shadow-[var(--shadow-lg)] border-red-500/15">
+-      <div class="w-14 h-14 rounded-full bg-[#fff2f2] flex items-center justify-center mx-auto mb-5">
+-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+-          <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 17H11V15H13V17ZM13 13H11V7H13V13Z" fill="#ff3b30"/>
+-        </svg>
+-      </div>
+-      <h3 class="text-[19px] font-semibold text-[var(--text-primary)] mb-2 tracking-tight">获取模型失败</h3>
+-      <p class="text-[15px] text-[var(--text-secondary)]">${escapeHtml(error)}</p>
+-    </div>`;
++  return `<div class="animate-in delay-2 rounded-[20px] p-10 text-center max-w-[480px] mx-auto mb-12 bg-[var(--bg-card)] backdrop-blur-xl border border-[var(--border-white)] shadow-[var(--shadow-lg)] border-red-500/15"><h3 class="text-[19px] font-semibold text-[var(--text-primary)] mb-2 tracking-tight">获取模型失败</h3><p class="text-[15px] text-[var(--text-secondary)]">${escapeHtml(error)}</p></div>`;
+ }
+ 
+ export function renderEmpty(): string {
+-  return `
+-    <div class="animate-in delay-2 rounded-[20px] p-16 text-center max-w-[480px] mx-auto bg-[var(--bg-card)] backdrop-blur-xl border border-[var(--border-white)] shadow-[var(--shadow-lg)]">
+-      <div class="w-16 h-16 rounded-full bg-[var(--bg-input)] flex items-center justify-center mx-auto mb-5">
+-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" class="text-[var(--text-secondary)]">
+-          <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20ZM11 15H13V17H11V15ZM11 7H13V13H11V7Z" fill="currentColor"/>
+-        </svg>
+-      </div>
+-      <h3 class="text-[19px] font-semibold text-[var(--text-primary)] mb-2 tracking-tight">暂无模型可用</h3>
+-      <p class="text-[15px] text-[var(--text-secondary)]">请检查 API 配置或稍后重试</p>
+-    </div>`;
++  return `<div class="animate-in delay-2 rounded-[20px] p-16 text-center max-w-[480px] mx-auto bg-[var(--bg-card)] backdrop-blur-xl border border-[var(--border-white)] shadow-[var(--shadow-lg)]"><h3 class="text-[19px] font-semibold text-[var(--text-primary)] mb-2 tracking-tight">暂无模型可用</h3><p class="text-[15px] text-[var(--text-secondary)]">请检查 API 配置或稍后重试</p></div>`;
+ }
+diff --git a/src/ui/escape.ts b/src/ui/escape.ts
+index 2c67386..9ebd75d 100644
+--- a/src/ui/escape.ts
++++ b/src/ui/escape.ts
+@@ -1,14 +1,9 @@
+ export function escapeHtml(value: unknown): string {
+-  return String(value)
+-    .replaceAll("&", "&amp;")
+-    .replaceAll("<", "&lt;")
+-    .replaceAll(">", "&gt;");
++  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+ }
+ 
+ export function escapeAttribute(value: unknown): string {
+-  return escapeHtml(value)
+-    .replaceAll('"', "&quot;")
+-    .replaceAll("'", "&#39;");
++  return escapeHtml(value).replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+ }
+ 
+ export function escapeJsString(value: unknown): string {
+diff --git a/src/ui/page.ts b/src/ui/page.ts
+index 9f8c205..fb65802 100644
+--- a/src/ui/page.ts
++++ b/src/ui/page.ts
+@@ -1,5 +1,5 @@
+ import type { AppConfig, GroupRule, SiteConfig } from "../types.ts";
+-import { groupModels } from "../services/models.ts";
++import { groupModels, orderedGroups } from "../config/groupConfig.ts";
+ import {
+   renderEmpty,
+   renderError,
+@@ -21,19 +21,15 @@ export function renderPage(
+   rules: GroupRule[],
+ ): string {
+   const groupedModels = models ? groupModels(models, rules) : null;
+-  const groupNames = groupedModels
+-    ? Object.keys(groupedModels).sort((a, b) => groupedModels[b].length - groupedModels[a].length)
+-    : [];
++  const groups = groupedModels ? orderedGroups(groupedModels, rules) : [];
+ 
+   let content: string;
+-  if (error) {
+-    content = renderError(error);
+-  } else if (groupedModels && groupNames.length > 0) {
+-    content = groupNames.map((name, index) => renderGroupSection(name, groupedModels[name], rules, index))
++  if (error) content = renderError(error);
++  else if (groups.length > 0)
++    content = groups
++      .map(({ rule, models: groupModels }, index) => renderGroupSection(rule, groupModels, index))
+       .join("");
+-  } else {
+-    content = renderEmpty();
+-  }
++  else content = renderEmpty();
+ 
+   return `
+ <!DOCTYPE html>
+@@ -54,7 +50,7 @@ export function renderPage(
+   ${renderRefreshButton(site.name)}
+   <div class="min-h-screen pt-16 pb-12 px-4 sm:px-6 lg:px-8">
+     <div class="max-w-[1200px] mx-auto">
+-      ${renderHeader(site, groupNames.length, models?.length || 0)}
++      ${renderHeader(site, groups.length, models?.length || 0)}
+       ${renderNotification()}
+       ${content}
+       <footer class="mt-20 pb-8 text-center">
+diff --git a/src/ui/scripts.ts b/src/ui/scripts.ts
+index b8b9f31..011658e 100644
+--- a/src/ui/scripts.ts
++++ b/src/ui/scripts.ts
+@@ -1,83 +1,75 @@
+ export const JS_SCRIPTS = `
+-  (function() {
+-    const savedTheme = localStorage.getItem('theme');
+-    if (savedTheme) {
+-      document.documentElement.setAttribute('data-theme', savedTheme);
+-    }
+-  })();
++  (() => {
++    const storage = (() => {
++      try { return window.localStorage; } catch { return null; }
++    })();
++    const safeStorageGet = (key) => { try { return storage?.getItem(key); } catch { return null; } };
++    const safeStorageSet = (key, value) => { try { storage?.setItem(key, value); } catch { /* storage unavailable */ } };
++    const safeStorageRemove = (key) => { try { storage?.removeItem(key); } catch { /* storage unavailable */ } };
++    const root = document.documentElement;
++    const savedTheme = safeStorageGet('theme');
++    if (savedTheme) root.setAttribute('data-theme', savedTheme);
+ 
+-  function getSystemTheme() {
+-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+-  }
++    const systemTheme = () => window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
++    const currentTheme = () => root.getAttribute('data-theme') || systemTheme();
++    const updateThemeIcon = () => {
++      const button = document.getElementById('themeToggleBtn');
++      if (!button) return;
++      button.innerHTML = currentTheme() === 'dark'
++        ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>'
++        : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
++    };
++    const setTheme = (theme) => {
++      if (theme === 'system') {
++        root.removeAttribute('data-theme');
++        safeStorageRemove('theme');
++      } else {
++        root.setAttribute('data-theme', theme);
++        safeStorageSet('theme', theme);
++      }
++      updateThemeIcon();
++    };
+ 
+-  function getCurrentTheme() {
+-    const attr = document.documentElement.getAttribute('data-theme');
+-    return attr || getSystemTheme();
+-  }
++    let siteSelectorOpen = false;
++    const toggleSiteSelector = () => {
++      const dropdown = document.getElementById('siteSelectorDropdown');
++      if (!dropdown) return;
++      siteSelectorOpen = !siteSelectorOpen;
++      dropdown.classList.toggle('opacity-0', !siteSelectorOpen);
++      dropdown.classList.toggle('invisible', !siteSelectorOpen);
++      dropdown.classList.toggle('opacity-100', siteSelectorOpen);
++      dropdown.classList.toggle('visible', siteSelectorOpen);
++    };
++    const copyModel = (model) => {
++      const writeText = navigator.clipboard?.writeText;
++      if (!writeText) return;
++      void writeText.call(navigator.clipboard, model).then(() => {
++        const notification = document.getElementById('notification');
++        if (!notification) return;
++        notification.classList.remove('notification-hidden');
++        notification.classList.add('notification-visible');
++        window.setTimeout(() => {
++          notification.classList.remove('notification-visible');
++          notification.classList.add('notification-hidden');
++        }, 2200);
++      }).catch(() => undefined);
++    };
+ 
+-  function setTheme(theme) {
+-    if (theme === 'system') {
+-      document.documentElement.removeAttribute('data-theme');
+-      localStorage.removeItem('theme');
+-    } else {
+-      document.documentElement.setAttribute('data-theme', theme);
+-      localStorage.setItem('theme', theme);
+-    }
++    document.addEventListener('click', (event) => {
++      const target = event.target?.closest?.('[data-action]') || event.target;
++      if (target?.dataset.action === 'toggle-theme') setTheme(currentTheme() === 'dark' ? 'light' : 'dark');
++      if (target?.dataset.action === 'toggle-site-selector') toggleSiteSelector();
++      if (target?.dataset.action === 'copy-model') copyModel(target.dataset.model || '');
++      if (target?.dataset.action === 'toggle-group') {
++        const content = target.parentElement?.querySelector?.('[data-role="group-content"]');
++        const icon = target.parentElement?.querySelector?.('[data-role="group-icon"]');
++        content?.classList.toggle('collapsed');
++        icon?.classList.toggle('icon-rotated');
++      }
++      const selector = document.getElementById('siteSelectorBtn');
++      const dropdown = document.getElementById('siteSelectorDropdown');
++      if (siteSelectorOpen && selector && dropdown && !selector.contains(event.target) && !dropdown.contains(event.target)) toggleSiteSelector();
++    });
+     updateThemeIcon();
+-  }
+-
+-  function toggleTheme() {
+-    const current = getCurrentTheme();
+-    setTheme(current === 'dark' ? 'light' : 'dark');
+-  }
+-
+-  function updateThemeIcon() {
+-    const btn = document.getElementById('themeToggleBtn');
+-    if (!btn) return;
+-    const isDark = getCurrentTheme() === 'dark';
+-    btn.innerHTML = isDark
+-      ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>'
+-      : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+-  }
+-
+-  document.addEventListener('DOMContentLoaded', updateThemeIcon);
+-
+-  function copyToClipboard(text) {
+-    navigator.clipboard.writeText(text).then(() => {
+-      const notification = document.getElementById('notification');
+-      notification.classList.remove('notification-hidden');
+-      notification.classList.add('notification-visible');
+-      setTimeout(() => {
+-        notification.classList.remove('notification-visible');
+-        notification.classList.add('notification-hidden');
+-      }, 2200);
+-    }).catch(err => console.error('复制失败:', err));
+-  }
+-
+-  function toggleGroup(groupName) {
+-    const content = document.getElementById('content-' + groupName);
+-    const icon = document.getElementById('icon-' + groupName);
+-    content.classList.toggle('collapsed');
+-    icon.classList.toggle('icon-rotated');
+-  }
+-
+-  let siteSelectorOpen = false;
+-
+-  function toggleSiteSelector() {
+-    const dropdown = document.getElementById('siteSelectorDropdown');
+-    siteSelectorOpen = !siteSelectorOpen;
+-    dropdown.classList.toggle('opacity-0', !siteSelectorOpen);
+-    dropdown.classList.toggle('invisible', !siteSelectorOpen);
+-    dropdown.classList.toggle('opacity-100', siteSelectorOpen);
+-    dropdown.classList.toggle('visible', siteSelectorOpen);
+-  }
+-
+-  document.addEventListener('click', (e) => {
+-    const selector = document.getElementById('siteSelectorBtn');
+-    const dropdown = document.getElementById('siteSelectorDropdown');
+-    if (siteSelectorOpen && selector && dropdown && 
+-        !selector.contains(e.target) && !dropdown.contains(e.target)) {
+-      toggleSiteSelector();
+-    }
+-  });
++  })();
+ `;
+diff --git a/vercel.json b/vercel.json
+index 93bbb1f..ca76781 100644
+--- a/vercel.json
++++ b/vercel.json
+@@ -1,12 +1,14 @@
+ {
+   "version": 2,
+-  "builds": [{
+-    "src": "src/api/index.ts",
+-    "use": "@vercel/node",
+-    "config": {
+-      "includeFiles": "src/**"
++  "builds": [
++    {
++      "src": "src/api/index.ts",
++      "use": "@vercel/node",
++      "config": {
++        "includeFiles": "src/**"
++      }
+     }
+-  }],
++  ],
+   "routes": [
+     { "src": "/", "dest": "/src/api/index.ts" },
+     { "src": "/favicon.svg", "dest": "/src/api/index.ts" },

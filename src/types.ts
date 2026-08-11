@@ -1,11 +1,7 @@
-export interface GroupConfig {
-  name?: string;
+export interface GroupRule {
+  name: string;
   icon: string;
   keywords?: string[];
-}
-
-export interface GroupRule extends GroupConfig {
-  name: string;
 }
 
 export interface SiteConfig {
@@ -36,5 +32,5 @@ export interface AppConfig {
 }
 
 export interface ModelResponse {
-  data?: { id: string }[];
+  data?: unknown;
 }
