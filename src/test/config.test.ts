@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { loadAppConfig } from "../config/appConfig.ts";
-import { groupModels, buildGroupRules, getGroupDisplayName, getGroupIcon } from "../config/groupConfig.ts";
+import { groupModels, buildGroupRules, getGroupDisplayName } from "../config/groupConfig.ts";
 import type { CustomGroupRule } from "../types.ts";
 
 const ORIGINAL_ENV = process.env.CONFIG_JSON;
@@ -476,7 +476,6 @@ describe("分组逻辑 - 自定义分组", () => {
   test("辅助函数按规范化名称查找", () => {
     const rules = buildGroupRules([{ name: "自定义", keywords: ["custom"], icon: "https://example.com/icon.png" }]);
     assert.equal(getGroupDisplayName("自定义", rules), "自定义");
-    assert.equal(getGroupIcon("自定义", rules), "https://example.com/icon.png");
     assert.equal(getGroupDisplayName("DEFAULT", rules), "其他");
   });
 });

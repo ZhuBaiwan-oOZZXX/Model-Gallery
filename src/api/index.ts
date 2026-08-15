@@ -3,10 +3,16 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { loadAppConfig } from "../config/appConfig.ts";
 import { buildGroupRules } from "../config/groupConfig.ts";
-import type { AppConfig, GroupRule, SiteConfig } from "../types.ts";
+import type { AppConfig, GroupRule } from "../types.ts";
 import { fetchModels } from "../services/models.ts";
 import { renderPage } from "../ui/page.ts";
-import { escapeHtml } from "../ui/escape.ts";
+import { renderErrorPage } from "../ui/errorPage.ts";
+import { ERROR_PAGE_TEXT } from "../ui/messages.ts";
+
+/** 模型列表页面在边缘缓存的秒数与后台重新验证窗口。 */
+const EDGE_CACHE_TTL_SECONDS = 60;
+const EDGE_CACHE_STALE_WHILE_REVALIDATE_SECONDS = 300;
+const FAVICON_CACHE_MAX_AGE_SECONDS = 86_400;
 
 interface RuntimeSnapshot {
   config: AppConfig;
@@ -28,23 +34,31 @@ function getRuntime(): Promise<RuntimeSnapshot> {
   return runtimePromise;
 }
 
-function writeHtml(res: http.ServerResponse, statusCode: number, html: string): void {
+function writeHead(res: http.ServerResponse, statusCode: number): void {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
+  // 模型列表页面按站点 URL 缓存 60 秒并在后台重新验证；错误页不缓存。
+  res.setHeader(
+    "Cache-Control",
+    statusCode >= 400
+      ? "no-store"
+      : `public, s-maxage=${EDGE_CACHE_TTL_SECONDS}, stale-while-revalidate=${EDGE_CACHE_STALE_WHILE_REVALIDATE_SECONDS}`,
+  );
   res.statusCode = statusCode;
+}
+
+function writeHtml(res: http.ServerResponse, statusCode: number, html: string): void {
+  writeHead(res, statusCode);
   res.end(html);
 }
 
 function writeError(res: http.ServerResponse, statusCode: number, title: string, message: string): void {
-  writeHtml(
-    res,
-    statusCode,
-    `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>${escapeHtml(title)}</title></head><body><h2>${escapeHtml(title)}</h2><p>${escapeHtml(message)}</p></body></html>`,
-  );
+  writeHtml(res, statusCode, renderErrorPage(title, message));
 }
 
 async function serveFavicon(res: http.ServerResponse, headOnly: boolean): Promise<void> {
   const file = await readFile(faviconPath);
   res.setHeader("Content-Type", "image/svg+xml");
+  res.setHeader("Cache-Control", `public, max-age=${FAVICON_CACHE_MAX_AGE_SECONDS}`);
   res.statusCode = 200;
   if (headOnly) res.end();
   else res.end(file);
@@ -53,7 +67,7 @@ async function serveFavicon(res: http.ServerResponse, headOnly: boolean): Promis
 async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   if (req.method !== "GET" && req.method !== "HEAD") {
     res.setHeader("Allow", "GET, HEAD");
-    writeError(res, 405, "不支持的请求方法", "只支持 GET 和 HEAD 请求");
+    writeError(res, 405, ERROR_PAGE_TEXT.methodNotAllowedTitle, ERROR_PAGE_TEXT.methodNotAllowedMessage);
     return;
   }
 
@@ -66,7 +80,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       return;
     }
     if (url.pathname !== "/") {
-      writeError(res, 404, "页面不存在", "请求的页面不存在");
+      writeError(res, 404, ERROR_PAGE_TEXT.notFoundTitle, ERROR_PAGE_TEXT.notFoundMessage);
       return;
     }
 
@@ -75,23 +89,22 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     const siteName = requestedSite ?? runtime.config.defaultSite;
     const site = runtime.config.sites.find((candidate) => candidate.name.toLowerCase() === siteName.toLowerCase());
     if (!site) {
-      writeError(res, 404, "站点不存在", "请求的站点不存在");
+      writeError(res, 404, ERROR_PAGE_TEXT.siteNotFoundTitle, ERROR_PAGE_TEXT.siteNotFoundMessage);
       return;
     }
 
     const result = await fetchModels(site);
-    const statusCode = result.error ? (result.error.includes("超时") ? 504 : 502) : 200;
+    const statusCode = result.errorType === "timeout" ? 504 : result.error ? 502 : 200;
     const html = renderPage(runtime.config, site, result.models, result.error, runtime.rules);
     if (headOnly) {
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.statusCode = statusCode;
+      writeHead(res, statusCode);
       res.end();
     } else {
       writeHtml(res, statusCode, html);
     }
   } catch (error) {
     console.error("请求处理失败:", error);
-    if (!res.writableEnded) writeError(res, 500, "服务器错误", "服务器暂时无法处理请求");
+    if (!res.writableEnded) writeError(res, 500, ERROR_PAGE_TEXT.serverErrorTitle, ERROR_PAGE_TEXT.serverErrorMessage);
   }
 }
 

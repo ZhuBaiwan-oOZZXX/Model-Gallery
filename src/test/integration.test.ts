@@ -74,7 +74,9 @@ describe("集成测试：启动服务器后检测", () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
-  async function fetchText(path: string): Promise<{ status: number; text: string; contentType: string | null }> {
+  async function fetchText(
+    path: string,
+  ): Promise<{ status: number; text: string; contentType: string | null; cacheControl: string | null }> {
     return new Promise((resolve, reject) => {
       http
         .get(`${baseUrl}${path}`, (res) => {
@@ -84,7 +86,12 @@ describe("集成测试：启动服务器后检测", () => {
             data += chunk;
           });
           res.on("end", () => {
-            resolve({ status: res.statusCode || 0, text: data, contentType: res.headers["content-type"] || null });
+            resolve({
+              status: res.statusCode || 0,
+              text: data,
+              contentType: res.headers["content-type"] || null,
+              cacheControl: res.headers["cache-control"] || null,
+            });
           });
         })
         .on("error", reject);
@@ -100,6 +107,16 @@ describe("集成测试：启动服务器后检测", () => {
     assert.ok(text.includes("gpt-4"));
     assert.ok(!text.includes("sk-test-key-a"));
     assert.ok(!text.includes("sk-test-key-b"));
+  });
+
+  test("主页带边缘缓存头，错误页不缓存", async () => {
+    const home = await fetchText("/");
+    assert.ok(home.cacheControl?.includes("s-maxage=60"), "主页应设置边缘缓存 TTL");
+    assert.ok(home.cacheControl?.includes("stale-while-revalidate"), "主页应允许后台重新验证");
+
+    const notFound = await fetchText("/unknown-path");
+    assert.equal(notFound.status, 404);
+    assert.equal(notFound.cacheControl, "no-store", "错误页不应被缓存");
   });
 
   test("favicon 返回 200 且内容类型为 SVG", async () => {

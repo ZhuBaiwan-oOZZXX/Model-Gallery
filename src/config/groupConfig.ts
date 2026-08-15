@@ -266,13 +266,6 @@ export function buildGroupRules(customRules?: CustomGroupRule[]): GroupRule[] {
   return stableOrder(nodes, customNodes);
 }
 
-export function getGroupIcon(groupName: string, rules: readonly GroupRule[] = BUILTIN_GROUP_RULES): string {
-  return (
-    rules.find((rule) => keyOf(rule.name) === keyOf(groupName))?.icon ??
-    BUILTIN_GROUP_RULES[BUILTIN_GROUP_RULES.length - 1].icon
-  );
-}
-
 export function getGroupDisplayName(groupName: string, rules: readonly GroupRule[] = BUILTIN_GROUP_RULES): string {
   return keyOf(groupName) === "default"
     ? "其他"

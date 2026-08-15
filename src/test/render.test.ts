@@ -1,9 +1,9 @@
-import { test, describe, before, after, afterEach } from "node:test";
+import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { buildGroupRules } from "../config/groupConfig.ts";
 import { renderPage } from "../ui/page.ts";
 import { renderHeader, renderSiteSelector, renderRefreshButton } from "../ui/components.ts";
-import { escapeAttribute, escapeHtml, escapeJsString, isSafeUrl, sanitizeUrl } from "../ui/escape.ts";
+import { escapeAttribute, escapeHtml, isSafeUrl, sanitizeUrl } from "../ui/escape.ts";
 import type { AppConfig, SiteConfig } from "../types.ts";
 
 const DEFAULT_RULES = buildGroupRules();
@@ -184,10 +184,6 @@ describe("安全性验证 - HTML 和属性转义", () => {
     );
   });
 
-  test("escapeJsString 转义内联事件字符串危险字符", () => {
-    assert.equal(escapeJsString(`x');alert(1);//<script>`), `x\\x27);alert(1);//\\x3Cscript\\x3E`);
-  });
-
   test("模型名包含 HTML 时只输出转义文本", () => {
     const modelName = `<script>alert(1)</script>`;
     const html = renderPage(TEST_CONFIG, TEST_SITE, [modelName], null, DEFAULT_RULES);
@@ -242,10 +238,7 @@ describe("安全性验证 - HTML 和属性转义", () => {
       html.includes(`src="https://example.com/icon.png&quot; onerror=&quot;alert(1)"`),
       "自定义图标应作为属性转义",
     );
-    assert.ok(
-      !html.includes(`<h3 class="text-[17px] font-semibold text-[var(--text-primary)] tracking-tight"><img`),
-      "分组标题不应注入 HTML",
-    );
+    assert.ok(!html.includes(`<span class="group-title"><img`), "分组标题不应注入 HTML");
   });
 
   test("isSafeUrl 只允许 http/https 协议", () => {
@@ -273,5 +266,44 @@ describe("安全性验证 - HTML 和属性转义", () => {
     const html = renderHeader(site, 1, 2);
     assert.ok(!html.includes("<img"), "危险 iconUrl 不应渲染 img 标签");
     assert.ok(!html.includes("data:image/svg+xml"), "header 不应包含 data: URL");
+  });
+});
+
+describe("现代化标记验证", () => {
+  const pageHtml = () => renderPage(TEST_CONFIG, TEST_SITE, ["gpt-4"], null, DEFAULT_RULES);
+
+  test("页面不再依赖 Tailwind CDN", () => {
+    assert.ok(!pageHtml().includes("cdn.tailwindcss.com"), "页面不应包含 Tailwind CDN 脚本");
+  });
+
+  test("页面包含 color-scheme 声明与主题初始化脚本", () => {
+    assert.ok(pageHtml().includes('<meta name="color-scheme" content="light dark">'), "应包含 color-scheme meta");
+    assert.ok(pageHtml().includes('localStorage.getItem("theme")'), "head 应包含主题初始化脚本");
+  });
+
+  test("主题切换按钮是带 aria-label 的原生按钮", () => {
+    assert.ok(pageHtml().includes('<button id="themeToggleBtn"'), "主题切换应为原生按钮");
+    assert.ok(pageHtml().includes('aria-label="切换主题"'), "应包含 aria-label");
+  });
+
+  test("页面包含 main 地标与无障碍 toast", () => {
+    assert.ok(pageHtml().includes('<main id="main"'), "应包含 main 地标");
+    assert.ok(pageHtml().includes('role="status"'), "toast 应有 status 角色");
+    assert.ok(pageHtml().includes('aria-live="polite"'), "toast 应可播报");
+  });
+
+  test("分组折叠头是带 aria-expanded 的原生按钮", () => {
+    assert.ok(
+      pageHtml().includes('<button type="button" class="group-header" data-action="toggle-group" aria-expanded="true"'),
+      "分组头应为按钮并声明展开状态",
+    );
+  });
+
+  test("模型卡片是带 data-model 的原生按钮", () => {
+    assert.ok(
+      pageHtml().includes('class="model-card" data-action="copy-model" data-model="gpt-4"'),
+      "模型卡片应为按钮并携带 data-model",
+    );
+    assert.ok(pageHtml().includes('aria-label="复制 gpt-4"'), "模型卡片应带复制语义标签");
   });
 });

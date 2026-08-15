@@ -50,7 +50,7 @@ describe("模型服务 fetchModels", () => {
     const result = await fetchModels(TEST_SITE);
 
     assert.equal(called, true);
-    assert.deepEqual(result, { models: ["gpt-4", "claude-3"], error: null });
+    assert.deepEqual(result, { models: ["gpt-4", "claude-3"], error: null, errorType: null });
   });
 
   test("非 2xx 响应返回明确错误", async () => {
@@ -60,6 +60,7 @@ describe("模型服务 fetchModels", () => {
 
     assert.equal(result.models, null);
     assert.equal(result.error, "获取模型失败: 401 Unauthorized");
+    assert.equal(result.errorType, "http");
   });
 
   test("非法 JSON 返回明确错误", async () => {
@@ -69,6 +70,7 @@ describe("模型服务 fetchModels", () => {
 
     assert.equal(result.models, null);
     assert.equal(result.error, "API 响应不是有效 JSON");
+    assert.equal(result.errorType, "parse");
   });
 
   test("非法响应结构返回明确错误", async () => {
@@ -78,6 +80,7 @@ describe("模型服务 fetchModels", () => {
 
     assert.equal(result.models, null);
     assert.equal(result.error, "API 响应格式不符合预期");
+    assert.equal(result.errorType, "format");
   });
 
   test("忽略缺失、非字符串和空字符串模型 ID", async () => {
@@ -92,7 +95,7 @@ describe("模型服务 fetchModels", () => {
 
     const result = await fetchModels(TEST_SITE);
 
-    assert.deepEqual(result, { models: ["gpt-4", "claude-3"], error: null });
+    assert.deepEqual(result, { models: ["gpt-4", "claude-3"], error: null, errorType: null });
   });
 
   test("网络异常返回通用请求失败错误且不泄露 API Key", async () => {
@@ -104,6 +107,7 @@ describe("模型服务 fetchModels", () => {
 
     assert.equal(result.models, null);
     assert.equal(result.error, "模型接口请求失败，请稍后重试");
+    assert.equal(result.errorType, "network");
     assert.ok(!result.error.includes(TEST_SITE.apiKey));
   });
 
@@ -126,7 +130,7 @@ describe("模型服务 fetchModels", () => {
     const result = await fetchModels(TEST_SITE, 20);
 
     assert.equal(aborted, true);
-    assert.deepEqual(result, { models: null, error: "获取模型超时，请稍后重试" });
+    assert.deepEqual(result, { models: null, error: "获取模型超时，请稍后重试", errorType: "timeout" });
     assert.ok(!result.error.includes(TEST_SITE.apiKey));
   });
 });

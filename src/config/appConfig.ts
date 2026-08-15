@@ -19,13 +19,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseString(value: unknown, label: string, required = true): string | undefined {
+function parseString(value: unknown, label: string, required = true, maxLength?: number): string | undefined {
   if (value === undefined && !required) return undefined;
   if (typeof value !== "string" || value.trim() === "") {
     throw new Error(`配置错误: ${label} 必须是非空字符串`);
   }
   const result = value.trim();
-  if (result.length > MAX_NAME_LENGTH && (label.endsWith("name") || label.includes("站点"))) {
+  if (maxLength !== undefined && result.length > maxLength) {
     throw new Error(`配置错误: ${label} 超过长度限制`);
   }
   return result;
@@ -58,7 +58,7 @@ function parseEndpoint(value: unknown, label: string): string {
 function parseSite(raw: unknown, index: number): SiteConfig {
   if (!isRecord(raw)) throw new Error(`配置错误: sites[${index}] 必须是对象`);
   ensureKnownKeys(raw, ["name", "apiUrl", "apiKey", "apiEndpoint", "externalUrl", "iconUrl"], `sites[${index}]`);
-  const name = parseString(raw.name, `sites[${index}].name`)!;
+  const name = parseString(raw.name, `sites[${index}].name`, true, MAX_NAME_LENGTH)!;
   const label = `站点 "${name}"`;
   return {
     name,
@@ -102,7 +102,7 @@ function parseCustomGroupRule(raw: unknown, index: number): CustomGroupRule {
   if (!isRecord(raw)) throw new Error(`配置错误: customGroupRules[${index}] 必须是对象`);
   const label = `customGroupRules[${index}]`;
   ensureKnownKeys(raw, ["name", "icon", "keywords", "position"], label);
-  const name = parseString(raw.name, `${label}.name`)!;
+  const name = parseString(raw.name, `${label}.name`, true, MAX_NAME_LENGTH)!;
   if (
     !Array.isArray(raw.keywords) ||
     raw.keywords.length === 0 ||
@@ -133,7 +133,8 @@ function parseConfig(raw: unknown): AppConfig {
     siteNames.add(key);
   }
 
-  const defaultSite = raw.defaultSite === undefined ? sites[0].name : parseString(raw.defaultSite, "defaultSite")!;
+  const defaultSite =
+    raw.defaultSite === undefined ? sites[0].name : parseString(raw.defaultSite, "defaultSite", true, MAX_NAME_LENGTH)!;
   const defaultSiteConfig = sites.find((site) => site.name.toLowerCase() === defaultSite.toLowerCase());
   if (!defaultSiteConfig) throw new Error(`配置错误: defaultSite "${defaultSite}" 不在 sites 列表中`);
 

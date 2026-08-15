@@ -1,14 +1,15 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
-import { JS_SCRIPTS } from "../ui/scripts.ts";
+import { JS_SCRIPTS, THEME_INIT_SCRIPT } from "../ui/assets.ts";
 
 class FakeClassList {
   private values = new Set<string>();
-  toggle(name: string, force?: boolean): void {
+  toggle(name: string, force?: boolean): boolean {
     const next = force === undefined ? !this.values.has(name) : force;
     if (next) this.values.add(name);
     else this.values.delete(name);
+    return next;
   }
   add(name: string): void {
     this.values.add(name);
@@ -24,9 +25,17 @@ class FakeClassList {
 class FakeElement {
   classList = new FakeClassList();
   innerHTML = "";
+  hidden = false;
   dataset: Record<string, string> = {};
   parentElement: FakeElement | null = null;
   children = new Map<string, FakeElement>();
+  private attrs = new Map<string, string>();
+  setAttribute(name: string, value: string): void {
+    this.attrs.set(name, value);
+  }
+  getAttribute(name: string): string | null {
+    return this.attrs.get(name) ?? null;
+  }
   closest(selector: string): FakeElement | null {
     return selector === "[data-action]" && this.dataset.action ? this : null;
   }
@@ -93,23 +102,52 @@ function createContext(storage: unknown, elements: Record<string, FakeElement> =
   return { context, listeners, root };
 }
 
+function createHeadContext(storage: unknown) {
+  const root = {
+    attrs: new Map<string, string>(),
+    setAttribute(name: string, value: string) {
+      this.attrs.set(name, value);
+    },
+  };
+  const context = {
+    document: { documentElement: root },
+    localStorage: storage,
+  } as Record<string, any>;
+  vm.createContext(context);
+  vm.runInContext(THEME_INIT_SCRIPT, context);
+  return root;
+}
+
+describe("主题初始化脚本（head）", () => {
+  test("恢复已保存主题", () => {
+    const storage = new MemoryStorage();
+    storage.setItem("theme", "dark");
+    const root = createHeadContext(storage);
+    assert.equal(root.attrs.get("data-theme"), "dark");
+  });
+
+  test("忽略非法主题值", () => {
+    const storage = new MemoryStorage();
+    storage.setItem("theme", "weird");
+    const root = createHeadContext(storage);
+    assert.equal(root.attrs.has("data-theme"), false);
+  });
+
+  test("存储异常时不抛错", () => {
+    assert.doesNotThrow(() => createHeadContext(new MemoryStorage(true)));
+  });
+});
+
 describe("浏览器交互脚本", () => {
   test("初始化时 localStorage 不可用仍能完成脚本注册", () => {
     const { listeners } = createContext(undefined);
     assert.ok(listeners.has("click"));
   });
 
-  test("初始化时读取已保存主题", () => {
-    const storage = new MemoryStorage();
-    storage.setItem("theme", "dark");
-    const { root } = createContext(storage);
-    assert.equal(root.getAttribute("data-theme"), "dark");
-  });
-
   test("存储异常不阻止主题点击处理", () => {
     const button = new FakeElement();
     button.dataset.action = "toggle-theme";
-    const { listeners, root } = createContext(new MemoryStorage(true), { themeToggleBtn: button });
+    const { listeners, root } = createContext(new MemoryStorage(true));
     assert.doesNotThrow(() => listeners.get("click")?.({ target: button }));
     assert.equal(root.getAttribute("data-theme"), "dark");
   });
@@ -131,7 +169,7 @@ describe("浏览器交互脚本", () => {
     await new Promise((resolve) => setImmediate(resolve));
   });
 
-  test("分组和站点选择器通过事件委托切换", () => {
+  test("分组与站点选择器通过事件委托切换，并维护 aria-expanded", () => {
     const groupHeader = new FakeElement();
     groupHeader.dataset.action = "toggle-group";
     const content = new FakeElement();
@@ -148,15 +186,20 @@ describe("浏览器交互脚本", () => {
       siteSelectorBtn: selector,
     });
     const click = listeners.get("click")!;
+
     click({ target: groupHeader });
     assert.equal(content.classList.has("collapsed"), true);
     assert.equal(icon.classList.has("icon-rotated"), true);
+    assert.equal(groupHeader.getAttribute("aria-expanded"), "false");
 
     selector.dataset.action = "toggle-site-selector";
     selector.closest = () => selector;
     click({ target: selector });
-    assert.equal(dropdown.classList.has("visible"), true);
+    assert.equal(dropdown.hidden, false);
+    assert.equal(selector.getAttribute("aria-expanded"), "true");
+
     click({ target: new FakeElement() });
-    assert.equal(dropdown.classList.has("visible"), false);
+    assert.equal(dropdown.hidden, true);
+    assert.equal(selector.getAttribute("aria-expanded"), "false");
   });
 });
