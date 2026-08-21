@@ -27,7 +27,7 @@ export const BUILTIN_GROUP_RULES: readonly GroupRule[] = [
   {
     name: "Meta",
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/meta-color.webp",
-    keywords: ["llama", "meta"],
+    keywords: ["llama", "meta", "muse"],
   },
   {
     name: "Qwen",
