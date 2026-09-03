@@ -127,7 +127,7 @@ export const BUILTIN_GROUP_RULES: readonly GroupRule[] = [
   {
     name: "Nvidia",
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/nvidia-color.webp",
-    keywords: ["nvidia"],
+    keywords: ["nvidia", "nemotron"],
   },
   {
     name: "讯飞",
